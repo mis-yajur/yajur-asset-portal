@@ -299,6 +299,8 @@ export default function App() {
               <ProductsModule onNotify={addNotification} onLog={logAction} />
             ) : currentPage === 'reports' ? (
               <ReportsModule onNotify={addNotification} onLog={logAction} />
+            ) : currentPage === 'ledger' ? (
+              <LedgerModule onNotify={addNotification} />
             ) : currentPage === 'settings' ? (
               user?.role === 'admin' ? (
                 <SettingsPage theme={theme} onThemeChange={setTheme} />

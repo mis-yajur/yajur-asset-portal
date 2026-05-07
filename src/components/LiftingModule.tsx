@@ -56,11 +56,20 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
       
       if (liftRes.success) {
         const parsedData = (liftRes.data || []).map((item: any) => {
-          let history = item.HISTORY;
+          let historyStr = item.HISTORY || item.history || item.History || item.DELIVERY_HISTORY || item.NOTES;
+          let history = historyStr;
           if (typeof history === 'string') {
-            try { history = JSON.parse(history); } catch (e) { history = []; }
+            try { 
+              history = JSON.parse(historyStr);
+            } catch (e) {
+              history = []; 
+            }
           }
-          return { ...item, HISTORY: Array.isArray(history) ? history : [] };
+          return { 
+            ...item, 
+            HISTORY: Array.isArray(history) ? history : [],
+            LAST_DELIVERY_DATE: item.LAST_DELIVERY_DATE || item.lastDeliveryDate || item.DELIVERY_DATE || item.deliveryDate || item.DATE || '' 
+          };
         });
         setLiftingData(parsedData);
       }
@@ -110,23 +119,28 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
 
     setIsLoading(true);
     try {
+      const newHistoryItem = {
+        id: Math.random().toString(36).substr(2, 9),
+        liftingId: selectedLifting.LIFTING_ID,
+        piNo: selectedLifting.PI_NO,
+        quantityKg: newDelivery.quantityKg,
+        deliveryDate: newDelivery.date,
+        timestamp: new Date().toISOString()
+      };
+      
+      const newHistoryJson = JSON.stringify([
+          ...(selectedLifting.HISTORY || []),
+          newHistoryItem
+      ]);
+
       const updatedLifting = {
         ...selectedLifting,
         DELIVERED_KG: selectedLifting.DELIVERED_KG + newDelivery.quantityKg,
         REMAINING_KG: selectedLifting.REMAINING_KG - newDelivery.quantityKg,
         LAST_DELIVERY_DATE: newDelivery.date,
         LAST_QTY: newDelivery.quantityKg,
-        HISTORY: JSON.stringify([
-          ...(selectedLifting.HISTORY || []),
-          {
-            id: Math.random().toString(36).substr(2, 9),
-            liftingId: selectedLifting.LIFTING_ID,
-            piNo: selectedLifting.PI_NO,
-            quantityKg: newDelivery.quantityKg,
-            deliveryDate: newDelivery.date,
-            timestamp: new Date().toISOString()
-          }
-        ])
+        HISTORY: newHistoryJson,
+        NOTES: newHistoryJson
       };
 
       const res = await apiCall('updateLifting', updatedLifting);
@@ -173,11 +187,13 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
     setIsLoading(true);
     try {
       const action = currentEntry.LIFTING_ID ? 'updateLifting' : 'addLifting';
+      const historyJson = Array.isArray(currentEntry.HISTORY) ? JSON.stringify(currentEntry.HISTORY) : (currentEntry.HISTORY || '[]');
       const payload = {
         ...currentEntry,
         LIFTING_ID: currentEntry.LIFTING_ID || `LIFT-${Date.now()}`,
         LAST_DELIVERY_DATE: currentEntry.LAST_DELIVERY_DATE || new Date().toISOString().split('T')[0],
-        HISTORY: Array.isArray(currentEntry.HISTORY) ? JSON.stringify(currentEntry.HISTORY) : currentEntry.HISTORY
+        HISTORY: historyJson,
+        NOTES: historyJson
       };
       
       const res = await apiCall(action, payload);

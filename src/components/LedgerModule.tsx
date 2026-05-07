@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { Download, FileSpreadsheet, Search, User, FileText, Info, ArrowUpRight, ArrowDownRight, Printer } from 'lucide-react';
-import { PIData, LiftingData } from '../types';
+import { PI as PIData, Lifting as LiftingData } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { apiCall } from '../services/api';
 
 interface LedgerModuleProps {
   onNotify: (t: string, m: string, s: 'success' | 'error') => void;
@@ -291,7 +292,7 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                       </tr>
                     </thead>
                     <tbody className="text-sm font-semibold text-text-main divide-y divide-border-main/50">
-                      {items.map((entry, idx) => (
+                      {(items as any[]).map((entry, idx) => (
                         <tr key={idx} className="hover:bg-slate-50 transition-colors">
                           <td className="p-4 text-text-dim">{new Date(entry.date).toLocaleDateString()}</td>
                           <td className="p-4 capitalize">
