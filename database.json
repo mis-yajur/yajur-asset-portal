@@ -1,0 +1,17 @@
+{
+  "users": [
+    {
+      "USER_ID": "USR001",
+      "USERNAME": "admin",
+      "PASSWORD_HASH": "39c43b7d",
+      "ROLE": "ADMIN",
+      "NAME": "Administrator",
+      "ACTIVE": true
+    }
+  ],
+  "customer_master": [],
+  "product_master": [],
+  "pi_data": [],
+  "lifting_data": [],
+  "settings": {}
+}
