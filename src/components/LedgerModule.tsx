@@ -77,7 +77,7 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
       // If there are legacy lifted amounts not in history
       if (history.length === 0 && lift.DELIVERED_KG > 0) {
         entries.push({
-          date: lift.DELIVERY_DATE || new Date().toISOString(),
+          date: lift.LAST_DELIVERY_DATE || new Date().toISOString(),
           type: 'Legacy Delivery',
           account: lift.ACCOUNT,
           piNo: lift.PI_NO,

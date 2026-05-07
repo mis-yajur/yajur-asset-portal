@@ -114,7 +114,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
         ...selectedLifting,
         DELIVERED_KG: selectedLifting.DELIVERED_KG + newDelivery.quantityKg,
         REMAINING_KG: selectedLifting.REMAINING_KG - newDelivery.quantityKg,
-        DELIVERY_DATE: newDelivery.date,
+        LAST_DELIVERY_DATE: newDelivery.date,
         LAST_QTY: newDelivery.quantityKg,
         HISTORY: JSON.stringify([
           ...(selectedLifting.HISTORY || []),
@@ -176,7 +176,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
       const payload = {
         ...currentEntry,
         LIFTING_ID: currentEntry.LIFTING_ID || `LIFT-${Date.now()}`,
-        DELIVERY_DATE: currentEntry.DELIVERY_DATE || new Date().toISOString().split('T')[0],
+        LAST_DELIVERY_DATE: currentEntry.LAST_DELIVERY_DATE || new Date().toISOString().split('T')[0],
         HISTORY: Array.isArray(currentEntry.HISTORY) ? JSON.stringify(currentEntry.HISTORY) : currentEntry.HISTORY
       };
       
@@ -208,7 +208,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
       l.DELIVERED_KG,
       l.REMAINING_KG,
       l.STATUS,
-      formatDate(l.DELIVERY_DATE)
+      formatDate(l.LAST_DELIVERY_DATE)
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
@@ -347,7 +347,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                            <div className="flex items-center gap-1.5 mt-1.5">
                              <CalendarDays size={12} className="text-accent" />
                              <span className="text-xs font-black text-text-main">
-                               {formatDate(item.DELIVERY_DATE)}
+                               {formatDate(item.LAST_DELIVERY_DATE)}
                              </span>
                            </div>
                         </div>
@@ -527,8 +527,8 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                       <input 
                         type="date"
                         className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-2.5 text-sm font-black outline-none focus:border-accent/40"
-                        value={currentEntry?.DELIVERY_DATE || ''}
-                        onChange={e => setCurrentEntry({ ...currentEntry, DELIVERY_DATE: e.target.value })}
+                        value={currentEntry?.LAST_DELIVERY_DATE || ''}
+                        onChange={e => setCurrentEntry({ ...currentEntry, LAST_DELIVERY_DATE: e.target.value })}
                       />
                    </div>
                 </div>

@@ -109,7 +109,7 @@ export interface Lifting {
   REMAINING_KG: number;
   FREQUENCY: number;
   STATUS: 'RUNNING' | 'COMPLETE' | 'NOT STARTED';
-  DELIVERY_DATE?: string;
+  LAST_DELIVERY_DATE?: string;
   LAST_QTY?: number;
   NOTES?: string;
   CREATED_DATE?: string;
