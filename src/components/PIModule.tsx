@@ -28,7 +28,7 @@ interface PIModuleProps {
 
 export default function PIModule({ onNotify, onLog }: PIModuleProps) {
   const [piData, setPiData] = useState<PI[]>([]);
-  const [liftingMap, setLiftingMap] = useState<Record<string, { assigned: number }>>({});
+  const [liftingMap, setLiftingMap] = useState<Record<string, { assigned: number, delivered: number }>>({});
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,10 +56,11 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       if (prodRes.success) setProducts(prodRes.data || []);
       if (liftRes.success) {
          const lifts = liftRes.data || [];
-         const map: Record<string, { assigned: number }> = {};
+         const map: Record<string, { assigned: number, delivered: number }> = {};
          lifts.forEach((l: any) => {
-            if (!map[l.PI_NO]) map[l.PI_NO] = { assigned: 0 };
+            if (!map[l.PI_NO]) map[l.PI_NO] = { assigned: 0, delivered: 0 };
             map[l.PI_NO].assigned += (Number(l.TARGET_KG) || 0);
+            map[l.PI_NO].delivered += (Number(l.DELIVERED_KG) || 0);
          });
          setLiftingMap(map);
       }
@@ -196,7 +197,8 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
             ))
         ) : paginatedData.length > 0 ? (
             paginatedData.map(pi => {
-                const progress = ((pi.totalDelivered || 0) / pi.QUANTITY_KG) * 100;
+                const totalDelivered = liftingMap[pi.PI_NO]?.delivered || 0;
+                const progress = (totalDelivered / (pi.QUANTITY_KG || 1)) * 100;
                 return (
                     <div key={pi.PI_NO} className="bg-surface-card rounded-custom border border-border-main p-6 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between border-l-4 border-l-transparent hover:border-l-accent">
                         <div>
@@ -243,7 +245,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                 </div>
                                 <div className="text-right">
                                     <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Delivered</div>
-                                    <div className="text-sm font-black text-teal-600">{(pi.totalDelivered || 0).toLocaleString()}kg</div>
+                                    <div className="text-sm font-black text-teal-600">{(liftingMap[pi.PI_NO]?.delivered || 0).toLocaleString()}kg</div>
                                 </div>
                             </div>
 

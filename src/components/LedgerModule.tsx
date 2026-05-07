@@ -52,7 +52,7 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
 
     const piMap = new Map<string, any>();
     piData.forEach(pi => {
-      piMap.set(pi.PI_NO, pi);
+      piMap.set((pi.PI_NO || '').trim(), pi);
 
       // Stock Ledger Entry: Inward (Production)
       stockEntries.push({
@@ -62,15 +62,15 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
         piNo: pi.PI_NO,
         qtyIn: Number(pi.QUANTITY_KG) || 0,
         qtyOut: 0,
-        rate: Number(pi.RATE) || 0,
+        rate: Number(pi.RATE_PER_UNIT) || 0,
         amount: 0,
-        remarks: `PI Created: ${pi.QUALITY || ''} ${pi.SHADE || ''}`
+        remarks: `PI Created: ${pi.PRODUCT_QUALITY || ''}`
       });
     });
 
     liftingData.forEach(lift => {
-      const piInfo = piMap.get(lift.PI_NO) || {};
-      const rate = Number(piInfo.RATE) || 0;
+      const piInfo = piMap.get((lift.PI_NO || '').trim()) || {};
+      const rate = Number(piInfo.RATE_PER_UNIT) || 0;
 
       const history = Array.isArray(lift.HISTORY) ? lift.HISTORY : [];
       let mappedDeliveries = history.map(h => ({

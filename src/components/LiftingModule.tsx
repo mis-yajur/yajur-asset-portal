@@ -476,11 +476,11 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                         className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-accent/40"
                         value={currentEntry?.PI_NO || ''}
                         onChange={e => {
-                          const val = e.target.value;
-                          const pi = piData.find(p => p.PI_NO === val);
+                          const val = e.target.value.trim();
+                          const pi = piData.find(p => p.PI_NO && p.PI_NO.trim() === val);
                           
                           const assignedToOthers = liftingData
-                            .filter(l => l.PI_NO === val && l.LIFTING_ID !== currentEntry?.LIFTING_ID)
+                            .filter(l => l.PI_NO && l.PI_NO.trim() === val && l.LIFTING_ID !== currentEntry?.LIFTING_ID)
                             .reduce((sum, l) => sum + (Number(l.TARGET_KG) || 0), 0);
                             
                           const piTotal = Number(pi?.QUANTITY_KG) || 0;
@@ -497,7 +497,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                       >
                         <option value="">Select Target PI</option>
                         {piData.filter(p => p.STATUS !== 'COMPLETE').map(p => (
-                          <option key={p.PI_NO} value={p.PI_NO}>{p.PI_NO} • {p.CUSTOMER_NAME}</option>
+                          <option key={p.PI_NO} value={p.PI_NO?.trim()}>{p.PI_NO?.trim()} • {p.CUSTOMER_NAME}</option>
                         ))}
                       </select>
                    </div>
@@ -692,25 +692,45 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                     <table className="w-full text-left border-collapse">
                         <thead className="sticky top-0 bg-surface-card shadow-sm">
                             <tr className="bg-surface-muted border-b border-border-main">
-                                <th className="px-6 py-3 text-xs font-black text-text-dim uppercase tracking-widest">Post Date</th>
                                 <th className="px-6 py-3 text-xs font-black text-text-dim uppercase tracking-widest">Entry Date</th>
-                                <th className="px-6 py-3 text-xs font-black text-text-dim uppercase tracking-widest text-right">Quantum (KG)</th>
+                                <th className="px-6 py-3 text-xs font-black text-text-dim uppercase tracking-widest text-right">Inward / Target</th>
+                                <th className="px-6 py-3 text-xs font-black text-text-dim uppercase tracking-widest text-right">Outward (Delivered)</th>
+                                <th className="px-6 py-3 text-xs font-black text-text-dim uppercase tracking-widest text-right">Balance</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-main">
-                            {selectedLifting.HISTORY.slice().reverse().map((entry) => (
-                                <tr key={entry.id} className="hover:bg-surface-muted transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="text-xs font-black text-text-main">{formatDate(entry.deliveryDate)}</div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-xs font-bold text-text-dim">{new Date(entry.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="text-xs font-black text-teal-600">{entry.quantityKg.toLocaleString()} kg</div>
-                                    </td>
-                                </tr>
-                            ))}
+                            <tr className="hover:bg-surface-muted transition-colors bg-blue-50/50">
+                                <td className="px-6 py-4">
+                                    <div className="text-xs font-bold text-text-dim">Initial Allocation</div>
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                    <div className="text-xs font-black text-indigo-600">{selectedLifting.TARGET_KG.toLocaleString()} kg</div>
+                                </td>
+                                <td className="px-6 py-4 text-right">-</td>
+                                <td className="px-6 py-4 text-right">
+                                    <div className="text-xs font-black text-slate-800">{selectedLifting.TARGET_KG.toLocaleString()} kg</div>
+                                </td>
+                            </tr>
+                            {(() => {
+                                let runningB = selectedLifting.TARGET_KG;
+                                return selectedLifting.HISTORY.map((entry) => {
+                                    runningB -= entry.quantityKg;
+                                    return (
+                                      <tr key={entry.id} className="hover:bg-surface-muted transition-colors">
+                                          <td className="px-6 py-4">
+                                              <div className="text-xs font-black text-text-main">{formatDate(entry.deliveryDate)} <span className="text-[10px] font-bold text-text-dim ml-2">{new Date(entry.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
+                                          </td>
+                                          <td className="px-6 py-4 text-right text-xs text-text-dim font-bold">-</td>
+                                          <td className="px-6 py-4 text-right">
+                                              <div className="text-xs font-black text-teal-600">{entry.quantityKg.toLocaleString()} kg</div>
+                                          </td>
+                                          <td className="px-6 py-4 text-right">
+                                              <div className="text-xs font-black text-slate-800">{runningB.toLocaleString()} kg</div>
+                                          </td>
+                                      </tr>
+                                    );
+                                });
+                            })()}
                         </tbody>
                     </table>
                 ) : (

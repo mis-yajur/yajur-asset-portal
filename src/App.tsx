@@ -410,23 +410,6 @@ function Header({
 
         {/* Actions & User */}
         <div className="flex items-center gap-3">
-          <button 
-            onClick={onQuickAdd}
-            className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-custom bg-accent text-white hover:scale-105 active:scale-95 transition-all shadow-lg shadow-accent/20"
-            title="Quick Add PI"
-          >
-            <Plus size={16} />
-            <span className="text-xs font-black uppercase tracking-widest">Quick Add</span>
-          </button>
-          
-          <button 
-            onClick={onQuickAdd}
-            className="sm:hidden w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white hover:scale-110 active:scale-95 transition-all shadow-lg shadow-accent/20"
-            title="Quick Add PI"
-          >
-            <Plus size={18} />
-          </button>
-
           <div className="hidden sm:flex items-center gap-2 pr-2 border-r border-white/10 relative">
             <button 
                 onClick={() => setShowThemePicker(!showThemePicker)}
@@ -644,18 +627,65 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
   useEffect(() => {
     async function loadDashboardData() {
       setIsLoading(true);
-      const res = await apiCall('getDashboardData');
-      if (res.success) {
-        setData(res);
-        onNotify("System Synced", "All operational data updated with live production feed.", "success");
+      try {
+        const [piRes, liftRes] = await Promise.all([
+          apiCall('getPIData'),
+          apiCall('getLiftingData')
+        ]);
         
-        // Simulate a critical alert if pending is high
-        const totalPending = res.monthly?.data?.reduce((s: any, m: any) => s + (m.totalPending || 0), 0) || 0;
-        if (totalPending > 50000) {
-          setTimeout(() => {
-            onNotify("Critical Pending Status", "Global pending volume exceeding thresholds. Review top parties.", "warning");
-          }, 2000);
+        if (piRes.success && liftRes.success) {
+          const pis = piRes.data || [];
+          const lifts = liftRes.data || [];
+          
+          let totalDelivered = 0;
+          const pendingDict: Record<string, { pending: number; target: number; delivered: number }> = {};
+          
+          lifts.forEach((l: any) => {
+            const delivered = Number(l.DELIVERED_KG) || 0;
+            const target = Number(l.TARGET_KG) || 0;
+            const pending = target - delivered;
+            
+            totalDelivered += delivered;
+            
+            const pName = l.ACCOUNT || 'Unknown';
+            if (!pendingDict[pName]) pendingDict[pName] = { pending: 0, target: 0, delivered: 0 };
+            pendingDict[pName].pending += Math.max(0, pending);
+            pendingDict[pName].target += target;
+            pendingDict[pName].delivered += delivered;
+          });
+          
+          const topPendingArr = Object.keys(pendingDict)
+             .map(k => ({ 
+               party: k, 
+               totalPending: pendingDict[k].pending,
+               totalTarget: pendingDict[k].target,
+               totalDelivered: pendingDict[k].delivered
+             }))
+             .sort((a,b) => b.totalPending - a.totalPending);
+             
+          const totalPending = topPendingArr.reduce((s, p) => s + p.totalPending, 0);
+          
+          // Generate monthly mock trend for chart (just 1 month of current data)
+          const currentMonthName = new Date().toLocaleString('default', { month: 'short' });
+          const monthlyArr = [{ month: currentMonthName, totalDelivered, totalPending }];
+
+          setData({
+             monthly: { data: monthlyArr },
+             topPending: { data: topPendingArr },
+             pendingPIs: { data: pis.filter((p:any) => p.STATUS !== 'COMPLETE') },
+             piSummary: { data: pis }
+          });
+          
+          onNotify("System Synced", "All operational data updated with live production feed.", "success");
+          
+          if (totalPending > 50000) {
+            setTimeout(() => {
+              onNotify("Critical Pending Status", "Global pending volume exceeding thresholds. Review top parties.", "warning");
+            }, 2000);
+          }
         }
+      } catch (err) {
+        console.error(err);
       }
       setIsLoading(false);
     }
@@ -901,21 +931,36 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
         <div className="bg-white rounded-custom border border-slate-200 p-6 shadow-sm flex flex-col">
           <h3 className="font-black text-primary uppercase text-sm tracking-widest flex items-center gap-2 mb-6">
             <AlertCircle size={18} className="text-rose-500" />
-            Top Pendings
+            Top Pendings / Lifting Allocation
           </h3>
-          <div className="flex-1">
+          <div className="flex-1 overflow-y-auto max-h-[300px] pr-2">
              {isLoading ? <ListSkeleton /> : (
-               <div className="space-y-3">
+               <div className="space-y-4">
                  {data?.topPending?.data?.map((party: any, i: number) => (
-                    <div key={i} className="flex flex-col gap-1.5 p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-accent/20 transition-all group cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-accent uppercase tracking-widest">{party.party}</span>
-                        <span className="num-font text-xs font-black text-slate-900">{party.totalPending.toLocaleString()} kg</span>
+                    <div key={i} className="flex flex-col gap-2 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-accent/20 transition-all group">
+                      <div className="flex flex-col gap-1 mb-1">
+                        <span className="text-xs font-black text-accent uppercase tracking-widest leading-relaxed">{party.party}</span>
                       </div>
-                      <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
+                      
+                      <div className="grid grid-cols-2 gap-4 mb-1">
+                        <div>
+                          <div className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">Target Allocation</div>
+                          <div className="text-sm font-black text-slate-900">{(party.totalTarget || 0).toLocaleString()} kg</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Delivered</div>
+                          <div className="text-sm font-black text-teal-600">{(party.totalDelivered || 0).toLocaleString()} kg</div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase mt-1">
+                        <span>Pending: {party.totalPending.toLocaleString()} kg</span>
+                        <span className="text-primary">{Math.min(100, Math.round(((party.totalDelivered || 0) / (party.totalTarget || 1)) * 100))}%</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-accent rounded-full transition-all duration-1000"
-                          style={{ width: `${Math.min(100, (party.totalPending / (data.topPending.data[0].totalPending || 1)) * 100)}%` }}
+                          style={{ width: `${Math.min(100, ((party.totalDelivered || 0) / (party.totalTarget || 1)) * 100)}%` }}
                         />
                       </div>
                     </div>
