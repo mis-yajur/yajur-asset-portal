@@ -31,6 +31,7 @@ interface LiftingModuleProps {
 export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
   const [liftingData, setLiftingData] = useState<Lifting[]>([]);
   const [piData, setPiData] = useState<PI[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -49,9 +50,10 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [liftRes, piRes] = await Promise.all([
+      const [liftRes, piRes, custRes] = await Promise.all([
         apiCall('getLiftingData'),
-        apiCall('getPIData')
+        apiCall('getPIData'),
+        apiCall('getCustomers')
       ]);
       
       if (liftRes.success) {
@@ -74,6 +76,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
         setLiftingData(parsedData);
       }
       if (piRes.success) setPiData(piRes.data || []);
+      if (custRes.success) setCustomers(custRes.data || []);
     } catch (error) {
       onNotify('Error', 'Failed to synchronize with mainframe', 'error');
     } finally {
@@ -510,13 +513,17 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                            </span>
                          )}
                       </div>
-                      <input 
+                      <select 
                         required
-                        placeholder="Customer Name"
                         className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-accent/40"
                         value={currentEntry?.ACCOUNT || ''}
                         onChange={e => setCurrentEntry({...currentEntry, ACCOUNT: e.target.value})}
-                      />
+                      >
+                         <option value="">Select Customer</option>
+                         {customers.map(c => (
+                            <option key={c.PARTY_CODE} value={c.PARTY_NAME}>{c.PARTY_NAME}</option>
+                         ))}
+                      </select>
                    </div>
 
                    <div className="space-y-2">
@@ -541,10 +548,20 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                    <div className="space-y-2">
                       <div className="flex justify-between items-end">
                          <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Target Quantum (KG)</label>
-                         {currentEntry?.PI_NO && currentEntry?.TARGET_KG !== undefined && (
-                             <span className="text-[10px] font-bold text-teal-600 uppercase">
-                               (Total PI: {currentEntry.RUNNING_PI_KG?.toLocaleString()}kg)
-                             </span>
+                         {currentEntry?.PI_NO && (
+                            (() => {
+                               const pi = piData.find(p => p.PI_NO?.trim() === currentEntry?.PI_NO);
+                               const assignedToOthers = liftingData
+                                 .filter(l => l.PI_NO && l.PI_NO.trim() === currentEntry?.PI_NO && l.LIFTING_ID !== currentEntry?.LIFTING_ID)
+                                 .reduce((sum, l) => sum + (Number(l.TARGET_KG) || 0), 0);
+                               const piTotal = Number(pi?.QUANTITY_KG) || 0;
+                               const piBalance = Math.max(0, piTotal - assignedToOthers);
+                               return (
+                                 <span className="text-[10px] font-bold text-teal-600 uppercase">
+                                   (PI BALANCE: {piBalance.toLocaleString()}kg)
+                                 </span>
+                               );
+                            })()
                          )}
                       </div>
                       <input 
