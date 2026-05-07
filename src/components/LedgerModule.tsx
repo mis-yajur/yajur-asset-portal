@@ -27,9 +27,10 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
         if(piRes.success) setPiData(piRes.data || []);
         if(liftRes.success) {
           const parsedData = (liftRes.data || []).map((item: any) => {
-            let history = item.HISTORY;
+            let historyStr = item.HISTORY || item.history || item.History || item.DELIVERY_HISTORY || item.NOTES;
+            let history = historyStr;
             if (typeof history === 'string') {
-              try { history = JSON.parse(history); } catch (e) { history = []; }
+              try { history = JSON.parse(historyStr); } catch (e) { history = []; }
             }
             return { ...item, HISTORY: Array.isArray(history) ? history : [] };
           });
@@ -138,6 +139,31 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     }
   }, [ledgerEntries, activeTab, search]);
 
+  const syncToSheet = async () => {
+    try {
+      const rows = filteredLedger.map(e => ({
+        ID: Math.random().toString(36).substr(2, 9),
+        DATE: new Date(e.date).toISOString(),
+        PI_NO: e.piNo,
+        ACCOUNT: e.group,
+        TYPE: e.type,
+        DEBIT_TARGET: e.debit || 0,
+        CREDIT_DELIVERED: e.credit || 0,
+        BALANCE: e.balance || 0,
+        REMARKS: e.remarks || ''
+      }));
+      onNotify('Info', 'Syncing ledger to Google Sheets...', 'success');
+      const res = await apiCall('syncLedger', { rows });
+      if (res.success) {
+        onNotify('Success', 'Ledger successfully saved to Google Sheets!', 'success');
+      } else {
+        onNotify('Error', 'Failed to sync: ' + res.error, 'error');
+      }
+    } catch (err) {
+      onNotify('Error', 'Failed to communicate with the server', 'error');
+    }
+  };
+
   const exportPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(16);
@@ -211,7 +237,13 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
           <p className="text-text-dim text-sm mt-1 font-semibold">Generate structured lifting ledgers directly from records.</p>
         </div>
         
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <button 
+            onClick={syncToSheet}
+            className="flex-1 md:flex-none justify-center px-4 py-2 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-sm flex items-center text-sm"
+          >
+            <Download size={16} className="mr-2 opacity-70" /> Sync to Sheet
+          </button>
           <button 
             onClick={exportCSV}
             className="flex-1 md:flex-none justify-center px-4 py-2 border border-border-main text-text-main font-bold rounded-xl hover:bg-surface-muted transition-colors flex items-center text-sm"
