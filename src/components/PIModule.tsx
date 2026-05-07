@@ -28,6 +28,7 @@ interface PIModuleProps {
 
 export default function PIModule({ onNotify, onLog }: PIModuleProps) {
   const [piData, setPiData] = useState<PI[]>([]);
+  const [liftingMap, setLiftingMap] = useState<Record<string, { assigned: number }>>({});
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,15 +44,25 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [piRes, custRes, prodRes] = await Promise.all([
+      const [piRes, custRes, prodRes, liftRes] = await Promise.all([
         apiCall('getPIData'),
         apiCall('getCustomers'),
-        apiCall('getProducts')
+        apiCall('getProducts'),
+        apiCall('getLiftingData')
       ]);
       
       if (piRes.success) setPiData(piRes.data || []);
       if (custRes.success) setCustomers(custRes.data || []);
       if (prodRes.success) setProducts(prodRes.data || []);
+      if (liftRes.success) {
+         const lifts = liftRes.data || [];
+         const map: Record<string, { assigned: number }> = {};
+         lifts.forEach((l: any) => {
+            if (!map[l.PI_NO]) map[l.PI_NO] = { assigned: 0 };
+            map[l.PI_NO].assigned += (Number(l.TARGET_KG) || 0);
+         });
+         setLiftingMap(map);
+      }
     } catch (error) {
       onNotify('Error', 'Mainframe sync failed', 'error');
     } finally {
@@ -215,14 +226,23 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                         </div>
 
                         <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4 bg-surface-muted p-3 rounded-2xl">
+                            <div className="grid grid-cols-3 gap-2 bg-surface-muted p-3 rounded-2xl">
                                 <div>
-                                    <div className="text-[11px] font-black text-text-dim uppercase tracking-tighter">Net Quantum</div>
-                                    <div className="text-sm font-black text-text-main">₹{pi.NET_AMOUNT?.toLocaleString()}</div>
-                                    <div className="text-[11px] font-bold text-text-dim">{pi.QUANTITY_KG?.toLocaleString()}kg</div>
+                                    <div className="text-[10px] font-black text-text-dim uppercase tracking-tighter">Gross Qty</div>
+                                    <div className="text-sm font-black text-primary">{pi.QUANTITY_KG?.toLocaleString()}kg</div>
+                                    <div className="text-[9px] font-bold text-text-dim mt-0.5">₹{pi.NET_AMOUNT?.toLocaleString()}</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter">Target Allocated</div>
+                                    <div className="text-sm font-black text-indigo-600">
+                                       {(liftingMap[pi.PI_NO]?.assigned || 0).toLocaleString()}kg
+                                    </div>
+                                    <div className="text-[9px] font-bold text-indigo-400 mt-0.5">
+                                       Left: {Math.max(0, (pi.QUANTITY_KG || 0) - (liftingMap[pi.PI_NO]?.assigned || 0)).toLocaleString()}kg
+                                    </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-[11px] font-black text-text-dim uppercase tracking-tighter">Delivered</div>
+                                    <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Delivered</div>
                                     <div className="text-sm font-black text-teal-600">{(pi.totalDelivered || 0).toLocaleString()}kg</div>
                                 </div>
                             </div>

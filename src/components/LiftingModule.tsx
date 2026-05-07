@@ -476,12 +476,22 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                         className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-accent/40"
                         value={currentEntry?.PI_NO || ''}
                         onChange={e => {
-                          const pi = piData.find(p => p.PI_NO === e.target.value);
+                          const val = e.target.value;
+                          const pi = piData.find(p => p.PI_NO === val);
+                          
+                          const assignedToOthers = liftingData
+                            .filter(l => l.PI_NO === val && l.LIFTING_ID !== currentEntry?.LIFTING_ID)
+                            .reduce((sum, l) => sum + (Number(l.TARGET_KG) || 0), 0);
+                            
+                          const piTotal = Number(pi?.QUANTITY_KG) || 0;
+                          const remainingQty = Math.max(0, piTotal - assignedToOthers);
+
                           setCurrentEntry({
                             ...currentEntry,
-                            PI_NO: e.target.value,
+                            PI_NO: val,
                             ACCOUNT: pi?.CUSTOMER_NAME || '',
-                            RUNNING_PI_KG: pi?.QUANTITY_KG || 0
+                            RUNNING_PI_KG: piTotal,
+                            TARGET_KG: remainingQty
                           });
                         }}
                       >
@@ -492,11 +502,20 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                       </select>
                    </div>
                    <div className="space-y-2">
-                      <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Account Header</label>
+                      <div className="flex justify-between items-end">
+                         <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Account Header</label>
+                         {currentEntry?.PI_NO && (
+                           <span className="text-[10px] font-bold text-accent uppercase bg-accent/10 px-2 py-0.5 rounded">
+                             Editable Customer
+                           </span>
+                         )}
+                      </div>
                       <input 
-                        readOnly
-                        className="w-full bg-slate-100 border border-border-main rounded-xl px-4 py-2.5 text-sm font-black text-slate-500 outline-none"
+                        required
+                        placeholder="Customer Name"
+                        className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-accent/40"
                         value={currentEntry?.ACCOUNT || ''}
+                        onChange={e => setCurrentEntry({...currentEntry, ACCOUNT: e.target.value})}
                       />
                    </div>
 
@@ -520,7 +539,14 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                    </div>
 
                    <div className="space-y-2">
-                      <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Target Quantum (KG)</label>
+                      <div className="flex justify-between items-end">
+                         <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Target Quantum (KG)</label>
+                         {currentEntry?.PI_NO && currentEntry?.TARGET_KG !== undefined && (
+                             <span className="text-[10px] font-bold text-teal-600 uppercase">
+                               (Total PI: {currentEntry.RUNNING_PI_KG?.toLocaleString()}kg)
+                             </span>
+                         )}
+                      </div>
                       <input 
                         required
                         type="number"
