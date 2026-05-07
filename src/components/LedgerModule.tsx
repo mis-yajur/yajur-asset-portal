@@ -1,16 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { Download, FileSpreadsheet, Search, User, FileText, Info, ArrowUpRight, ArrowDownRight, Printer } from 'lucide-react';
+import { Download, FileSpreadsheet, Search, User, FileText, Info, ArrowUpRight, ArrowDownRight, Printer, IndianRupee } from 'lucide-react';
 import { PI as PIData, Lifting as LiftingData } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { apiCall } from '../services/api';
 
 interface LedgerModuleProps {
-  onNotify: (t: string, m: string, s: 'success' | 'error') => void;
+  onNotify: (t: string, m: string, s: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
 export function LedgerModule({ onNotify }: LedgerModuleProps) {
-  const [activeTab, setActiveTab] = useState<'customer' | 'pi'>('customer');
+  const [activeTab, setActiveTab] = useState<'party' | 'stock'>('party');
   const [search, setSearch] = useState('');
   const [piData, setPiData] = useState<PIData[]>([]);
   const [liftingData, setLiftingData] = useState<LiftingData[]>([]);
@@ -47,64 +47,105 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
 
   // Calculate Ledger Rows
   const ledgerEntries = useMemo(() => {
-    const entries: any[] = [];
-    
-    // 1. Add PI Targets
+    const stockEntries: any[] = [];
+    const partyEntries: any[] = [];
+
+    const piMap = new Map<string, any>();
     piData.forEach(pi => {
-      entries.push({
-        date: pi.CREATED_AT || pi.PI_DATE || new Date().toISOString(),
-        type: 'PI Generated',
-        account: pi.ACCOUNT,
+      piMap.set(pi.PI_NO, pi);
+
+      // Stock Ledger Entry: Inward (Production)
+      stockEntries.push({
+        date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
+        type: 'Stock Prepared',
+        account: 'Factory / Master',
         piNo: pi.PI_NO,
-        debit: pi.QUANTITY_KG, // Target In
-        credit: 0,
-        remarks: `PI Created: ${pi.QUALITY} ${pi.SHADE}`
+        qtyIn: Number(pi.QUANTITY_KG) || 0,
+        qtyOut: 0,
+        rate: Number(pi.RATE) || 0,
+        amount: 0,
+        remarks: `PI Created: ${pi.QUALITY || ''} ${pi.SHADE || ''}`
       });
     });
-    
-    // 2. Add Deliveries
+
     liftingData.forEach(lift => {
+      const piInfo = piMap.get(lift.PI_NO) || {};
+      const rate = Number(piInfo.RATE) || 0;
+
       const history = Array.isArray(lift.HISTORY) ? lift.HISTORY : [];
-      history.forEach(h => {
-        entries.push({
-          date: h.deliveryDate || h.timestamp,
-          type: 'Delivery',
-          account: lift.ACCOUNT,
-          piNo: lift.PI_NO,
-          debit: 0,
-          credit: h.quantityKg,
-          remarks: `Delivery Dispatch`
-        });
-      });
+      let mappedDeliveries = history.map(h => ({
+        date: h.deliveryDate || h.timestamp,
+        type: 'Delivery (Sales)',
+        account: lift.ACCOUNT,
+        piNo: lift.PI_NO,
+        qtyOut: Number(h.quantityKg) || 0,
+        rate: rate,
+        amount: (Number(h.quantityKg) || 0) * rate,
+        remarks: `Invoice / Dispatch`
+      }));
+
       // If there are legacy lifted amounts not in history
-      if (history.length === 0 && lift.DELIVERED_KG > 0) {
-        entries.push({
-          date: lift.LAST_DELIVERY_DATE || new Date().toISOString(),
+      if (mappedDeliveries.length === 0 && Number(lift.DELIVERED_KG) > 0) {
+        mappedDeliveries.push({
+          date: lift.LAST_DELIVERY_DATE || lift.DATE || new Date().toISOString(),
           type: 'Legacy Delivery',
           account: lift.ACCOUNT,
           piNo: lift.PI_NO,
-          debit: 0,
-          credit: lift.DELIVERED_KG,
-          remarks: `Legacy Delivery`
+          qtyOut: Number(lift.DELIVERED_KG) || 0,
+          rate: rate,
+          amount: (Number(lift.DELIVERED_KG) || 0) * rate,
+          remarks: `Legacy Delivery Record`
         });
       }
+
+      mappedDeliveries.forEach(d => {
+         // Stock Ledger Entry: Outward (Sales)
+         stockEntries.push({
+           date: d.date,
+           type: d.type,
+           account: d.account,
+           piNo: d.piNo,
+           qtyIn: 0,
+           qtyOut: d.qtyOut,
+           rate: d.rate,
+           amount: d.amount,
+           remarks: `Sold to ${d.account}`
+         });
+
+         // Party Ledger Entry: Sales (Debit for Party)
+         partyEntries.push({
+           date: d.date,
+           type: d.type,
+           account: d.account,
+           piNo: d.piNo,
+           qty: d.qtyOut,
+           rate: d.rate,
+           debitAmt: d.amount,
+           creditAmt: 0,
+           remarks: `Delivery against PI ${d.piNo}`
+         });
+      });
     });
 
-    entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    return entries;
+    stockEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    partyEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    return { stockEntries, partyEntries };
   }, [piData, liftingData]);
 
   // Filter based on Tab
   const filteredLedger = useMemo(() => {
-    let list = ledgerEntries;
-    if (search) {
-      list = list.filter(e => 
-        (e.account && e.account.toLowerCase().includes(search.toLowerCase())) ||
-        (e.piNo && e.piNo.toLowerCase().includes(search.toLowerCase()))
-      );
-    }
-    
-    if (activeTab === 'customer') {
+    const { stockEntries, partyEntries } = ledgerEntries;
+
+    if (activeTab === 'party') {
+      let list = partyEntries;
+      if (search) {
+        list = list.filter(e => 
+          (e.account && e.account.toLowerCase().includes(search.toLowerCase())) ||
+          (e.piNo && e.piNo.toLowerCase().includes(search.toLowerCase()))
+        );
+      }
+      
       const byCustomer: Record<string, any[]> = {};
       list.forEach(e => {
         if (!byCustomer[e.account]) byCustomer[e.account] = [];
@@ -113,14 +154,29 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
       
       const res: any[] = [];
       Object.keys(byCustomer).sort().forEach(acc => {
-        let bal = 0;
+        let balAmt = 0;
         byCustomer[acc].forEach(entry => {
-          bal += entry.debit - entry.credit;
-          res.push({ ...entry, balance: bal, group: acc });
+          balAmt += entry.debitAmt - entry.creditAmt;
+          res.push({ ...entry, balanceAmt: balAmt, group: acc });
+        });
+        
+        // Push a summary row for party
+        res.push({
+           isSummary: true,
+           group: acc,
+           balanceAmt: balAmt
         });
       });
       return res;
     } else {
+      let list = stockEntries;
+      if (search) {
+        list = list.filter(e => 
+          (e.account && e.account.toLowerCase().includes(search.toLowerCase())) ||
+          (e.piNo && e.piNo.toLowerCase().includes(search.toLowerCase()))
+        );
+      }
+      
       const byPI: Record<string, any[]> = {};
       list.forEach(e => {
         if (!byPI[e.piNo]) byPI[e.piNo] = [];
@@ -129,10 +185,10 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
       
       const res: any[] = [];
       Object.keys(byPI).sort().forEach(pi => {
-        let bal = 0;
+        let balQty = 0;
         byPI[pi].forEach(entry => {
-          bal += entry.debit - entry.credit;
-          res.push({ ...entry, balance: bal, group: pi });
+          balQty += entry.qtyIn - entry.qtyOut;
+          res.push({ ...entry, balanceQty: balQty, group: pi });
         });
       });
       return res;
@@ -140,19 +196,20 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
   }, [ledgerEntries, activeTab, search]);
 
   const syncToSheet = async () => {
+    // We will just export the stock entries for the legacy sync
     try {
-      const rows = filteredLedger.map(e => ({
+      const rows = ledgerEntries.stockEntries.map(e => ({
         ID: Math.random().toString(36).substr(2, 9),
         DATE: new Date(e.date).toISOString(),
         PI_NO: e.piNo,
-        ACCOUNT: e.group,
+        ACCOUNT: e.account,
         TYPE: e.type,
-        DEBIT_TARGET: e.debit || 0,
-        CREDIT_DELIVERED: e.credit || 0,
-        BALANCE: e.balance || 0,
+        DEBIT_TARGET: e.qtyIn || 0,
+        CREDIT_DELIVERED: e.qtyOut || 0,
+        BALANCE: 0, // In backend the format is standard
         REMARKS: e.remarks || ''
       }));
-      onNotify('Info', 'Syncing ledger to Google Sheets...', 'success');
+      onNotify('Info', 'Syncing ledger to Google Sheets...', 'info');
       const res = await apiCall('syncLedger', { rows });
       if (res.success) {
         onNotify('Success', 'Ledger successfully saved to Google Sheets!', 'success');
@@ -167,21 +224,38 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
   const exportPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(16);
-    doc.text(`Ledger Report (${activeTab === 'customer' ? 'Customer-wise' : 'PI-wise'})`, 14, 20);
+    doc.text(`Ledger Report (${activeTab === 'party' ? 'Party/Financial' : 'PI/Stock'})`, 14, 20);
     
-    const tableData = filteredLedger.map(e => [
-      e.group,
-      new Date(e.date).toLocaleDateString(),
-      e.type,
-      e.piNo,
-      e.debit ? e.debit + ' kg' : '-',
-      e.credit ? e.credit + ' kg' : '-',
-      e.balance + ' kg'
-    ]);
-
+    let tableData = [];
+    let head = [];
+    if (activeTab === 'party') {
+      head = [['Account', 'Date', 'Type', 'PI Ref', 'Qty & Rate', 'Debit Amt', 'Credit Amt', 'Balance']];
+      tableData = filteredLedger.filter(e => !e.isSummary).map(e => [
+        e.group,
+        new Date(e.date).toLocaleDateString(),
+        e.type,
+        e.piNo,
+        `${e.qty} kg @ ${e.rate || '-'}`,
+        e.debitAmt?.toFixed(2),
+        e.creditAmt?.toFixed(2),
+        e.balanceAmt?.toFixed(2)
+      ]);
+    } else {
+      head = [['PI No', 'Date', 'Type', 'Account', 'Stock In', 'Delivered Out', 'Stock Balance']];
+      tableData = filteredLedger.map(e => [
+        e.group,
+        new Date(e.date).toLocaleDateString(),
+        e.type,
+        e.account,
+        e.qtyIn ? e.qtyIn + ' kg' : '-',
+        e.qtyOut ? e.qtyOut + ' kg' : '-',
+        e.balanceQty + ' kg'
+      ]);
+    }
+    
     autoTable(doc, {
       startY: 30,
-      head: [[activeTab === 'customer' ? 'Account' : 'PI No', 'Date', 'Type', 'PI Reference', 'Debit (Target)', 'Credit (Delivered)', 'Balance']],
+      head: head,
       body: tableData,
       theme: 'grid',
       styles: { fontSize: 8 },
@@ -193,17 +267,20 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
   };
 
   const exportCSV = () => {
-    const headers = ['Account/Group', 'Date', 'Type', 'PI No', 'Debit (Target Kg)', 'Credit (Delivered Kg)', 'Balance (Kg)', 'Remarks'];
-    const rows = filteredLedger.map(e => [
-      `"${e.group}"`,
-      `"${new Date(e.date).toLocaleDateString()}"`,
-      `"${e.type}"`,
-      `"${e.piNo}"`,
-      e.debit,
-      e.credit,
-      e.balance,
-      `"${e.remarks}"`
-    ]);
+    let headers = [];
+    let rows = [];
+    if (activeTab === 'party') {
+      headers = ['Account', 'Date', 'Type', 'PI No', 'Qty', 'Rate', 'Debit Amount', 'Credit Amount', 'Balance Amount', 'Remarks'];
+      rows = filteredLedger.filter(e => !e.isSummary).map(e => [
+        `"${e.group}"`, `"${new Date(e.date).toLocaleDateString()}"`, `"${e.type}"`, `"${e.piNo}"`, e.qty, e.rate, e.debitAmt, e.creditAmt, e.balanceAmt, `"${e.remarks}"`
+      ]);
+    } else {
+      headers = ['PI No', 'Date', 'Type', 'Account', 'Qty IN (Stock)', 'Qty OUT (Delivered)', 'Balance', 'Remarks'];
+      rows = filteredLedger.map(e => [
+        `"${e.group}"`, `"${new Date(e.date).toLocaleDateString()}"`, `"${e.type}"`, `"${e.account}"`, e.qtyIn, e.qtyOut, e.balanceQty, `"${e.remarks}"`
+      ]);
+    }
+
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -217,7 +294,6 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     onNotify('Success', 'CSV export initiated', 'success');
   };
 
-  // Ensure items are grouped nicely in the view
   const groupedItems = useMemo(() => {
     const groups: Record<string, any[]> = {};
     filteredLedger.forEach(item => {
@@ -232,9 +308,9 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-border-main">
         <div>
           <h2 className="text-2xl font-black text-primary-main tracking-tight uppercase flex items-center">
-            <FileSpreadsheet className="w-6 h-6 mr-3 text-accent" /> Ledger Generator
+             Ledger & Analytics
           </h2>
-          <p className="text-text-dim text-sm mt-1 font-semibold">Generate structured lifting ledgers directly from records.</p>
+          <p className="text-text-dim text-sm mt-1 font-semibold">Tally-style Financial accounts and PI-wise Stock tracking.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -260,27 +336,20 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
         </div>
       </div>
 
-      <div className="bg-white/60 p-4 rounded-xl border border-blue-200 flex items-start space-x-3 text-sm text-blue-800">
-        <Info className="w-5 h-5 shrink-0 mt-0.5" />
-        <div>
-          <span className="font-bold">Google Sheets Integration:</span> The ledger is generated dynamically on the fly based on your PI and Delivery records. To export this view back to your Google Sheets, click "Export CSV" and import it, or create a sheet named <strong>"Ledger"</strong> with headers: <em>Account, Date, Type, PI No, Debit (Target), Credit (Delivery), Balance, Remarks</em>.
-        </div>
-      </div>
-
       <div className="bg-white rounded-2xl shadow-sm border border-border-main overflow-hidden flex flex-col">
         <div className="p-4 border-b border-border-main bg-surface-muted/50 flex flex-col sm:flex-row justify-between gap-4">
           <div className="flex bg-border-main p-1 rounded-lg">
             <button
-              onClick={() => setActiveTab('customer')}
-              className={`flex-1 px-4 py-1.5 rounded-md text-sm font-bold transition-colors flex items-center justify-center ${activeTab === 'customer' ? 'bg-white text-primary-main shadow-sm' : 'text-text-dim hover:text-text-main'}`}
+              onClick={() => setActiveTab('party')}
+              className={`flex-1 px-4 py-1.5 rounded-md text-sm font-bold transition-colors flex items-center justify-center ${activeTab === 'party' ? 'bg-white text-primary-main shadow-sm' : 'text-text-dim hover:text-text-main'}`}
             >
-              <User size={14} className="mr-2" /> Customer Wise
+              <User size={14} className="mr-2" /> Party Ledger (Sales)
             </button>
             <button
-              onClick={() => setActiveTab('pi')}
-              className={`flex-1 px-4 py-1.5 rounded-md text-sm font-bold transition-colors flex items-center justify-center ${activeTab === 'pi' ? 'bg-white text-primary-main shadow-sm' : 'text-text-dim hover:text-text-main'}`}
+              onClick={() => setActiveTab('stock')}
+              className={`flex-1 px-4 py-1.5 rounded-md text-sm font-bold transition-colors flex items-center justify-center ${activeTab === 'stock' ? 'bg-white text-primary-main shadow-sm' : 'text-text-dim hover:text-text-main'}`}
             >
-              <FileText size={14} className="mr-2" /> P.I. Wise
+              <FileSpreadsheet size={14} className="mr-2" /> Stock Ledger (PI-Wise)
             </button>
           </div>
 
@@ -288,7 +357,7 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-dim w-4 h-4" />
             <input
               type="text"
-              placeholder="Search ledgers..."
+              placeholder="Search..."
               className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-border-main rounded-xl outline-none focus:border-accent font-semibold"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -306,52 +375,93 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
             <div className="p-6 space-y-12">
               {Object.entries(groupedItems).map(([groupKey, items]) => (
                 <div key={groupKey} className="border border-border-main rounded-xl overflow-hidden bg-white shadow-sm">
-                  <div className="bg-surface-muted p-4 border-b border-border-main">
+                  <div className="bg-surface-muted flex p-4 border-b border-border-main items-center justify-between">
                     <h3 className="font-black text-primary-main uppercase tracking-wider text-base flex items-center">
                       <div className="w-2 h-2 rounded-full bg-accent mr-3"></div>
                       {groupKey}
                     </h3>
+                    {activeTab === 'party' && (
+                       <div className="px-3 py-1 bg-white border border-border-main rounded text-xs font-bold text-text-dim uppercase">
+                          Current Outstanding: <span className="text-red-500 font-black ml-1">
+                             ₹{items.find(i => i.isSummary)?.balanceAmt?.toLocaleString(undefined, {minimumFractionDigits: 2}) || 0}
+                          </span>
+                       </div>
+                    )}
                   </div>
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-white border-b border-border-main text-xs uppercase text-text-dim tracking-wider font-extrabold">
                         <th className="p-4">Date</th>
-                        <th className="p-4">Type</th>
+                        <th className="p-4">Particulars / Type</th>
                         <th className="p-4">Reference</th>
-                        <th className="p-4 text-right bg-red-50/30 text-red-600">Debit (Trgt)</th>
-                        <th className="p-4 text-right bg-green-50/30 text-green-600">Credit (Del)</th>
-                        <th className="p-4 text-right text-primary-main">Balance</th>
+                        
+                        {activeTab === 'stock' ? (
+                          <>
+                            <th className="p-4 bg-green-50/30 text-green-600 text-right">Inward (Kg)</th>
+                            <th className="p-4 bg-red-50/30 text-red-600 text-right">Outward (Kg)</th>
+                            <th className="p-4 text-right text-primary-main">Balance (Kg)</th>
+                          </>
+                        ) : (
+                          <>
+                            <th className="p-4">Qty</th>
+                            <th className="p-4">Rate</th>
+                            <th className="p-4 bg-red-50/30 text-red-600 text-right">Debit (₹)</th>
+                            <th className="p-4 bg-green-50/30 text-green-600 text-right">Credit (₹)</th>
+                            <th className="p-4 text-right text-primary-main">Balance (₹)</th>
+                          </>
+                        )}
+                        
                       </tr>
                     </thead>
                     <tbody className="text-sm font-semibold text-text-main divide-y divide-border-main/50">
-                      {(items as any[]).map((entry, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-4 text-text-dim">{new Date(entry.date).toLocaleDateString()}</td>
-                          <td className="p-4 capitalize">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${entry.debit > 0 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
-                              {entry.type}
-                            </span>
-                          </td>
-                          <td className="p-4 font-mono text-xs">{activeTab === 'customer' ? entry.piNo : entry.account}</td>
-                          <td className="p-4 text-right">
-                             {entry.debit > 0 ? (
-                                <div className="flex items-center justify-end text-red-600 font-bold">
-                                   <ArrowDownRight size={14} className="mr-1 opacity-70" /> {entry.debit.toLocaleString()} kg
-                                </div>
-                             ) : '-'}
-                          </td>
-                          <td className="p-4 text-right">
-                             {entry.credit > 0 ? (
-                                <div className="flex items-center justify-end text-green-600 font-bold">
-                                  <ArrowUpRight size={14} className="mr-1 opacity-70" /> {entry.credit.toLocaleString()} kg
-                                </div>
-                             ) : '-'}
-                          </td>
-                          <td className="p-4 text-right">
-                             <span className="bg-primary-main text-white px-2 py-1 rounded font-bold">{entry.balance.toLocaleString()} kg</span>
-                          </td>
-                        </tr>
-                      ))}
+                      {(items as any[]).map((entry, idx) => {
+                        if (entry.isSummary) return null; // Used for closing balance display
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-4 text-text-dim">{new Date(entry.date).toLocaleDateString()}</td>
+                            <td className="p-4 capitalize">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
+                                {entry.type}
+                              </span>
+                            </td>
+                            <td className="p-4 font-mono text-xs text-text-dim">
+                               {activeTab === 'stock' ? entry.account : entry.piNo}
+                            </td>
+                            
+                            {activeTab === 'stock' ? (
+                              <>
+                                <td className="p-4 text-right">
+                                  {entry.qtyIn > 0 ? <span className="text-green-600 font-bold">{entry.qtyIn.toLocaleString()}</span> : '-'}
+                                </td>
+                                <td className="p-4 text-right">
+                                  {entry.qtyOut > 0 ? <span className="text-red-500 font-bold">{entry.qtyOut.toLocaleString()}</span> : '-'}
+                                </td>
+                                <td className="p-4 text-right">
+                                  <span className="bg-primary-main text-white px-2 py-1 rounded font-bold">{entry.balanceQty.toLocaleString()}</span>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="p-4">
+                                  {entry.qty > 0 ? `${entry.qty.toLocaleString()} kg` : '-'}
+                                </td>
+                                <td className="p-4">
+                                  {entry.rate > 0 ? `₹${entry.rate}` : '-'}
+                                </td>
+                                <td className="p-4 text-right">
+                                  {entry.debitAmt > 0 ? <div className="text-red-500 font-bold">₹{entry.debitAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</div> : '-'}
+                                </td>
+                                <td className="p-4 text-right">
+                                  {entry.creditAmt > 0 ? <div className="text-green-600 font-bold">₹{entry.creditAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</div> : '-'}
+                                </td>
+                                <td className="p-4 text-right">
+                                  <span className="bg-primary-main text-white px-2 py-1 rounded font-bold">₹{entry.balanceAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
