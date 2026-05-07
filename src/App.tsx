@@ -1,0 +1,1564 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  LayoutDashboard, 
+  Truck, 
+  FileText, 
+  Users, 
+  Box, 
+  BarChart3, 
+  Settings, 
+  LogOut, 
+  Bell, 
+  ChevronLeft, 
+  ChevronRight, 
+  Download, 
+  Filter,
+  Plus,
+  Search,
+  Activity,
+  History,
+  AlertCircle,
+  Menu,
+  X,
+  CreditCard,
+  Building,
+  Palette
+} from 'lucide-react';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  PointElement,
+  LineElement,
+  ArcElement,
+} from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+import { motion, AnimatePresence } from 'motion/react';
+import { cn, formatDate } from './lib/utils';
+import { apiCall } from './services/api';
+import type { Page, User, ThemeSettings, FontStyle, Notification, AuditLogEntry } from './types';
+
+// Modules
+import LiftingModule from './components/LiftingModule';
+import PIModule from './components/PIModule';
+import CustomersModule from './components/CustomersModule';
+import ProductsModule from './components/ProductsModule';
+import ReportsModule from './components/ReportsModule';
+import { LedgerModule } from './components/LedgerModule';
+
+import { THEME_PRESETS } from './constants';
+
+// --- Constants ---
+const FONT_MAP: Record<FontStyle, string> = {
+  sans: '"Inter", sans-serif',
+  serif: '"Playfair Display", serif',
+  mono: '"JetBrains Mono", monospace',
+  display: '"Outfit", sans-serif'
+};
+
+const DEFAULT_THEME: ThemeSettings = {
+  themeId: 'slate-light',
+  primaryColor: '#0d1b3e',
+  accentColor: '#f59e0b',
+  fontFamily: 'sans',
+  borderRadius: 'large'
+};
+
+const RADIUS_MAP: Record<ThemeSettings['borderRadius'], string> = {
+  none: '0px',
+  small: '0.5rem',
+  medium: '1rem',
+  large: '2rem',
+  full: '9999px'
+};
+
+// Register ChartJS plugins
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  PointElement,
+  LineElement,
+  ArcElement
+);
+
+// --- Defaults ---
+ChartJS.defaults.font.family = 'Arial, sans-serif';
+ChartJS.defaults.color = '#718096';
+
+// --- Main App Component ---
+export default function App() {
+  const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [toasts, setToasts] = useState<Notification[]>([]);
+  const [theme, setTheme] = useState<ThemeSettings>(() => {
+    const saved = localStorage.getItem('theme');
+    try {
+      return saved ? JSON.parse(saved) : DEFAULT_THEME;
+    } catch (e) {
+      return DEFAULT_THEME;
+    }
+  });
+
+  // Apply theme to document
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme.themeId);
+    
+    root.style.setProperty('--primary-color', theme.primaryColor);
+    root.style.setProperty('--accent-color', theme.accentColor);
+    root.style.setProperty('--font-main-family', FONT_MAP[theme.fontFamily]);
+    root.style.setProperty('--radius-value', RADIUS_MAP[theme.borderRadius]);
+    
+    // Also update ChartJS defaults if needed
+    ChartJS.defaults.color = theme.primaryColor + '80'; // 80 is 50% opacity in hex
+    
+    localStorage.setItem('theme', JSON.stringify(theme));
+  }, [theme]);
+
+  // Auto-login check (simulated for now, could use localStorage)
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  const handleLogin = (userData: User) => {
+    setUser(userData);
+    setIsLoggedIn(true);
+    localStorage.setItem('user', JSON.stringify(userData));
+    // logAction isn't available yet since user state hasn't updated in the same tick if we call it here, 
+    // but the effect below will handle initial login logging
+  };
+
+  useEffect(() => {
+    if (isLoggedIn && user) {
+      logAction('Login', `User ${user.username} successfully authenticated from ${window.location.origin}`);
+    }
+  }, [isLoggedIn]);
+
+  const handleLogout = () => {
+    if (user) logAction('Logout', `User ${user.username} session terminated`);
+    setUser(null);
+    setIsLoggedIn(false);
+    localStorage.removeItem('user');
+  };
+
+  // Simulated Notification Engine
+  const addNotification = (title: string, message: string, type: Notification['type'] = 'info') => {
+    const newNote: Notification = {
+      id: Math.random().toString(36).substr(2, 9),
+      title,
+      message,
+      type,
+      timestamp: new Date(),
+      read: false
+    };
+    setNotifications(prev => [newNote, ...prev]);
+    setToasts(prev => [...prev, newNote]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== newNote.id));
+    }, 5000);
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+
+  // --- Handlers ---
+  const logAction = (action: string, details: string) => {
+    if (!user) return;
+    const entry: AuditLogEntry = {
+      id: Math.random().toString(36).substr(2, 9),
+      userId: user.username,
+      userName: user.name,
+      action,
+      details,
+      timestamp: new Date()
+    };
+    setAuditLogs(prev => [entry, ...prev]);
+  };
+
+  if (!isLoggedIn) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-surface-base text-text-main font-['DM_Sans'] flex flex-col">
+      {/* Quick Add Modal */}
+      <QuickAddModal 
+        isOpen={isQuickAddOpen} 
+        onClose={() => setIsQuickAddOpen(false)} 
+        onAdd={(pi) => {
+          logAction('Create PI', `System manual entry of PI# ${pi.PI_NO} for ${pi.CUSTOMER_NAME}`);
+          addNotification("PI Created", `Proforma Invoice ${pi.PI_NO} successfully recorded.`, "success");
+        }}
+      />
+
+      {/* Top Navigation - Replaces Sidebar */}
+      <Header 
+        activePage={currentPage} 
+        onNavigate={setCurrentPage}
+        onLogout={handleLogout}
+        user={user}
+        isMobileMenuOpen={isMobileMenuOpen}
+        setIsMobileMenuOpen={setIsMobileMenuOpen}
+        unreadCount={unreadCount}
+        notifications={notifications}
+        onMarkRead={markAllAsRead}
+        onQuickAdd={() => setIsQuickAddOpen(true)}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
+
+      {/* Toast Notifications Overlay */}
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, x: 20, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className={cn(
+                "w-80 p-4 rounded-2xl shadow-2xl border-l-4 pointer-events-auto flex gap-3 backdrop-blur-xl bg-white/90",
+                toast.type === 'success' ? "border-teal-500" : 
+                toast.type === 'error' ? "border-rose-500" : 
+                toast.type === 'warning' ? "border-amber-500" : "border-primary"
+              )}
+            >
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
+                toast.type === 'success' ? "bg-teal-50 text-teal-600" : 
+                toast.type === 'error' ? "bg-rose-50 text-rose-600" : 
+                toast.type === 'warning' ? "bg-amber-50 text-amber-600" : "bg-primary/5 text-primary"
+              )}>
+                {toast.type === 'success' ? <Activity size={20} /> : <AlertCircle size={20} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">System Alert</div>
+                <div className="text-sm font-black text-slate-900 mb-0.5">{toast.title}</div>
+                <div className="text-xs font-bold text-slate-500 line-clamp-2">{toast.message}</div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-x-hidden p-4 md:p-6 lg:p-8">
+        <div className="w-full">
+          {/* Breadcrumbs */}
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <div className="text-xs text-slate-400 font-bold uppercase tracking-widest">Yajur Fibres / Portal</div>
+              <h2 className="text-2xl font-black text-primary uppercase lg:text-3xl tracking-tight mt-1">
+                {currentPage === 'dashboard' ? 'Operational Dashboard' : `${currentPage.replace('-', ' ')} Module`}
+              </h2>
+            </div>
+            <div className="hidden sm:flex items-center gap-3">
+              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-custom text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition-all">
+                <Download size={14} /> Export PDF
+              </button>
+              <button 
+                onClick={() => window.location.reload()}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-custom text-xs font-bold shadow-lg shadow-indigo-900/10 hover:opacity-90 transition-all"
+              >
+                <Activity size={14} /> Refresh Data
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {currentPage === 'dashboard' ? (
+              <Dashboard user={user} onNotify={addNotification} onLog={logAction} />
+            ) : currentPage === 'lifting' ? (
+              <LiftingModule onNotify={addNotification} onLog={logAction} />
+            ) : currentPage === 'pi' ? (
+              <PIModule onNotify={addNotification} onLog={logAction} />
+            ) : currentPage === 'customers' ? (
+              <CustomersModule onNotify={addNotification} onLog={logAction} />
+            ) : currentPage === 'products' ? (
+              <ProductsModule onNotify={addNotification} onLog={logAction} />
+            ) : currentPage === 'reports' ? (
+              <ReportsModule onNotify={addNotification} onLog={logAction} />
+            ) : currentPage === 'settings' ? (
+              user?.role === 'admin' ? (
+                <SettingsPage theme={theme} onThemeChange={setTheme} />
+              ) : (
+                <div className="bg-white rounded-custom p-12 text-center border border-slate-200">
+                  <AlertCircle size={48} className="mx-auto text-rose-500 mb-4" />
+                  <h3 className="text-xl font-black text-primary uppercase">Access Restricted</h3>
+                  <p className="text-sm text-slate-400 mt-2">Administrative privileges required to access global settings module.</p>
+                  <button onClick={() => setCurrentPage('dashboard')} className="mt-8 px-8 py-3 bg-slate-100 rounded-xl text-xs font-black uppercase">Return home</button>
+                </div>
+              )
+            ) : currentPage === 'audit-log' ? (
+              <AuditLogPage logs={auditLogs} />
+            ) : (
+              <PlaceholderModule page={currentPage} onBack={() => setCurrentPage('dashboard')} />
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="p-6 text-center text-xs font-bold text-slate-400 uppercase tracking-widest border-t border-slate-200">
+        © 2026 Yajur Fibres Limited • Enterprise Asset Portal v2.0
+      </footer>
+    </div>
+  );
+}
+
+// --- Header (Top Navigation) ---
+interface HeaderProps {
+  activePage: Page;
+  onNavigate: (page: Page) => void;
+  onLogout: () => void;
+  user: User | null;
+  isMobileMenuOpen: boolean;
+  setIsMobileMenuOpen: (open: boolean) => void;
+  unreadCount?: number;
+  notifications?: Notification[];
+  onMarkRead?: () => void;
+  onQuickAdd?: () => void;
+  theme: ThemeSettings;
+  onThemeChange: (theme: ThemeSettings) => void;
+}
+
+function Header({ 
+  activePage, 
+  onNavigate, 
+  onLogout, 
+  user, 
+  isMobileMenuOpen, 
+  setIsMobileMenuOpen, 
+  unreadCount = 0, 
+  notifications = [], 
+  onMarkRead, 
+  onQuickAdd,
+  theme,
+  onThemeChange
+}: HeaderProps) {
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showThemePicker, setShowThemePicker] = useState(false);
+  const isAdmin = user?.role === 'admin';
+
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+    { id: 'lifting', label: 'Operations', icon: <Truck size={18} /> },
+    { id: 'ledger', label: 'Ledger', icon: <FileText size={18} /> },
+    { id: 'pi', label: 'Proforma', icon: <FileText size={18} /> },
+    { id: 'customers', label: 'Customers', icon: <Users size={18} /> },
+    { id: 'products', label: 'Products', icon: <Box size={18} /> },
+    { id: 'reports', label: 'Analytics', icon: <BarChart3 size={18} /> },
+    { id: 'audit-log', label: 'Audit', icon: <History size={18} />, hidden: !isAdmin },
+    { id: 'settings', label: 'Settings', icon: <Settings size={18} />, hidden: !isAdmin },
+  ].filter(i => !i.hidden) as { id: Page; label: string; icon: React.ReactNode }[];
+
+  return (
+    <header className="sticky top-0 z-50 bg-primary text-white border-b border-white/10 shadow-xl">
+      <div className="max-w-7xl mx-auto px-4 h-18 flex items-center justify-between">
+        {/* Brand */}
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-custom bg-accent flex items-center justify-center text-white shadow-lg shadow-accent/20">
+            <Building size={20} />
+          </div>
+          <div className="hidden xs:block">
+            <h1 className="font-black text-xl tracking-tight leading-none uppercase">Yajur Fibres</h1>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Lifting Portal</p>
+          </div>
+        </div>
+
+        {/* Desktop Nav */}
+        <nav className="hidden xl:flex items-center gap-1">
+          {navItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => onNavigate(item.id)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-custom text-sm font-black transition-all",
+                activePage === item.id 
+                  ? "bg-accent text-white shadow-lg shadow-accent/20" 
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              )}
+            >
+              {item.icon}
+              <span className="uppercase tracking-widest">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* Actions & User */}
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={onQuickAdd}
+            className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-custom bg-accent text-white hover:scale-105 active:scale-95 transition-all shadow-lg shadow-accent/20"
+            title="Quick Add PI"
+          >
+            <Plus size={16} />
+            <span className="text-xs font-black uppercase tracking-widest">Quick Add</span>
+          </button>
+          
+          <button 
+            onClick={onQuickAdd}
+            className="sm:hidden w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white hover:scale-110 active:scale-95 transition-all shadow-lg shadow-accent/20"
+            title="Quick Add PI"
+          >
+            <Plus size={18} />
+          </button>
+
+          <div className="hidden sm:flex items-center gap-2 pr-2 border-r border-white/10 relative">
+            <button 
+                onClick={() => setShowThemePicker(!showThemePicker)}
+                className="p-2 text-slate-400 hover:text-white transition-colors relative"
+                title="Theme Presets"
+            >
+                <Palette size={18} />
+            </button>
+
+            {/* Theme Picker Panel */}
+            <AnimatePresence>
+                {showThemePicker && (
+                <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute top-full mt-4 right-0 w-64 bg-surface-card rounded-2xl shadow-2xl border border-border-main py-4 overflow-hidden z-[60]"
+                >
+                    <div className="px-6 mb-4 flex items-center justify-between">
+                        <h4 className="text-xs font-black text-text-main uppercase tracking-widest">Color Plates</h4>
+                    </div>
+                    <div className="px-4 grid grid-cols-1 gap-2">
+                        {THEME_PRESETS.map(p => (
+                            <button
+                                key={p.id}
+                                onClick={() => {
+                                    onThemeChange({ ...theme, themeId: p.id, primaryColor: p.primary, accentColor: p.accent });
+                                    setShowThemePicker(false);
+                                }}
+                                className={cn(
+                                    "flex items-center gap-3 p-2 rounded-xl transition-all border",
+                                    theme.themeId === p.id 
+                                        ? "bg-accent/10 border-accent/20" 
+                                        : "border-transparent hover:bg-surface-muted"
+                                )}
+                            >
+                                <div className="flex -space-x-1.5 shrink-0">
+                                    <div className="w-5 h-5 rounded-full border border-surface-card shadow-sm" style={{ backgroundColor: p.primary }} />
+                                    <div className="w-5 h-5 rounded-full border border-surface-card shadow-sm" style={{ backgroundColor: p.accent }} />
+                                </div>
+                                <div className="text-left">
+                                    <div className="text-xs font-black text-text-main uppercase tracking-tight">{p.name}</div>
+                                    <div className="text-xs font-bold text-text-dim uppercase">{p.type} mode</div>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </motion.div>
+                )}
+            </AnimatePresence>
+
+            <button 
+              onClick={() => {
+                setShowNotifications(!showNotifications);
+                if (!showNotifications && onMarkRead) onMarkRead();
+              }}
+              className="p-2 text-slate-400 hover:text-white transition-colors relative"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <div className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 border-2 border-primary rounded-full text-xs font-black flex items-center justify-center animate-bounce">
+                  {unreadCount}
+                </div>
+              )}
+            </button>
+
+            {/* Notifications Panel */}
+            <AnimatePresence>
+              {showNotifications && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute top-full mt-4 right-0 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-4 overflow-hidden z-[60]"
+                >
+                  <div className="px-6 mb-4 flex items-center justify-between">
+                    <h4 className="text-xs font-black text-primary uppercase tracking-widest">Recent Activity</h4>
+                    <span className="text-[11px] font-bold text-text-dim bg-surface-muted px-2 py-0.5 rounded-full uppercase">Real-time</span>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto divide-y divide-border-main">
+                    {notifications.length > 0 ? (
+                      notifications.map(n => (
+                        <div key={n.id} className="p-4 hover:bg-surface-muted transition-colors flex gap-3">
+                          <div className={cn("w-1 h-1 rounded-full mt-1.5 shrink-0", n.read ? "bg-border-main" : "bg-accent")} />
+                          <div>
+                            <div className="text-sm font-black text-text-main">{n.title}</div>
+                            <div className="text-xs text-text-dim font-bold mt-0.5">{n.message}</div>
+                            <div className="text-[11px] text-text-dim font-bold uppercase mt-1.5">{formatDate(n.timestamp)}</div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-6 py-8 text-center text-xs font-bold text-text-dim uppercase tracking-widest">
+                        Perfect Status • No Alerts
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="hidden md:block text-right">
+              <div className="text-xs font-black text-white leading-none capitalize">{user?.name}</div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1">{user?.role}</div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-teal-500 flex items-center justify-center font-black text-xs text-white border-2 border-white/10">
+              {user?.name?.substring(0, 2).toUpperCase() || 'AD'}
+            </div>
+            <button 
+              onClick={onLogout}
+              className="p-2 text-slate-400 hover:text-rose-400 transition-colors" 
+              title="Logout"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+
+          {/* Mobile Menu Toggle */}
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="lg:hidden p-2 text-slate-400 hover:text-white"
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Nav Dropdown */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden border-t border-white/10 bg-primary animate-in slide-in-from-top duration-200">
+          <div className="p-4 grid grid-cols-2 gap-2">
+            {navItems.map(item => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  onNavigate(item.id);
+                  setIsMobileMenuOpen(false);
+                }}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-custom text-xs font-bold transition-all border",
+                  activePage === item.id 
+                    ? "bg-accent border-accent text-white" 
+                    : "bg-white/5 border-transparent text-slate-400"
+                )}
+              >
+                {item.icon}
+                <span className="uppercase tracking-widest">{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </header>
+  );
+}
+
+// --- Skeleton Components ---
+function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn("animate-pulse bg-surface-muted rounded-lg", className)} {...props} />
+  );
+}
+
+function StatSkeleton() {
+  return (
+    <div className="bg-surface-card p-5 rounded-custom border border-border-main shadow-sm relative overflow-hidden">
+      <div className="flex items-start justify-between">
+        <Skeleton className="w-11 h-11 rounded-2xl" />
+        <Skeleton className="w-16 h-4 rounded-full" />
+      </div>
+      <div className="mt-4 space-y-2">
+        <Skeleton className="w-20 h-3" />
+        <Skeleton className="w-24 h-6" />
+      </div>
+    </div>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[1, 2, 3, 4, 5].map(i => (
+        <div key={i} className="flex flex-col gap-2 p-3 rounded-2xl bg-surface-muted border border-border-main">
+          <div className="flex justify-between">
+            <Skeleton className="w-24 h-3" />
+            <Skeleton className="w-16 h-3" />
+          </div>
+          <Skeleton className="w-full h-1" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// --- Dashboard Sub-module ---
+function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t: string, m: string, type?: Notification['type']) => void, onLog: (a: string, d: string) => void }) {
+  const [data, setData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  // Filters State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [materialFilter, setMaterialFilter] = useState('');
+
+  const toggleRow = (piNo: string) => {
+    const newRows = new Set(expandedRows);
+    if (newRows.has(piNo)) newRows.delete(piNo);
+    else newRows.add(piNo);
+    setExpandedRows(newRows);
+  };
+
+  useEffect(() => {
+    async function loadDashboardData() {
+      setIsLoading(true);
+      const res = await apiCall('getDashboardData');
+      if (res.success) {
+        setData(res);
+        onNotify("System Synced", "All operational data updated with live production feed.", "success");
+        
+        // Simulate a critical alert if pending is high
+        const totalPending = res.monthly?.data?.reduce((s: any, m: any) => s + (m.totalPending || 0), 0) || 0;
+        if (totalPending > 50000) {
+          setTimeout(() => {
+            onNotify("Critical Pending Status", "Global pending volume exceeding thresholds. Review top parties.", "warning");
+          }, 2000);
+        }
+      }
+      setIsLoading(false);
+    }
+    loadDashboardData();
+  }, []);
+
+  const exportToCSV = () => {
+    const tableData = filteredPIs;
+    if (!tableData.length) return;
+
+    const headers = ["PI Number", "Account Name", "Material", "Target", "Delivered", "Status", "Delivery Address", "Contact Person", "Payment Terms"];
+    const rows = tableData.map(pi => [
+      `"${(pi.PI_NO || '').replace(/"/g, '""')}"`,
+      `"${(pi.CUSTOMER_NAME || '').replace(/"/g, '""')}"`,
+      `"${(pi.PRODUCT_QUALITY || '').replace(/"/g, '""')}"`,
+      pi.QUANTITY_KG,
+      pi.totalDelivered || 0,
+      `"${(pi.STATUS || '').replace(/"/g, '""')}"`,
+      `"${(pi.DELIVERY_ADDRESS || 'Plot 45, Sector 12, Industrial Area, Haridwar').replace(/"/g, '""')}"`,
+      `"${(pi.CONTACT_PERSON || 'Mr. Arvind Shrivastava').replace(/"/g, '""')}"`,
+      `"${(pi.PAYMENT_TERMS || 'L/C Sight').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Order_Pipeline_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    onNotify("Export Success", "Table data exported to CSV successfully.", "success");
+    onLog('CSV Export', `Generated spreadsheet for ${tableData.length} active order pipeline entries.`);
+  };
+
+  const stats = [
+    { 
+      label: "Total Delivered", 
+      value: data?.monthly?.data ? `${(data?.monthly?.data?.reduce((s: any, m: any) => s + (parseFloat(m.totalDelivered) || 0), 0) || 0).toLocaleString()} kg` : null, 
+      icon: <Truck size={20} />, 
+      color: "bg-accent",
+      trend: "+12.5% vs LW",
+      status: { label: "Live", color: "bg-blue-100 text-blue-700" }
+    },
+    { 
+      label: "Total Pending", 
+      value: data?.monthly?.data ? `${(data?.monthly?.data?.reduce((s: any, m: any) => s + (parseFloat(m.totalPending) || 0), 0) || 0).toLocaleString()} kg` : null, 
+      icon: <AlertCircle size={20} />, 
+      color: "bg-rose-500",
+      trend: "Critical Focus",
+      status: { label: "Attention", color: "bg-rose-100 text-rose-700" }
+    },
+    { 
+      label: "Active P.I.s", 
+      value: data?.pendingPIs?.data?.length || 0, 
+      icon: <FileText size={20} />, 
+      color: "bg-teal-500",
+      status: { label: "In Review", color: "bg-teal-100 text-teal-700" }
+    },
+    { 
+      label: "Customers", 
+      value: data?.piSummary?.data ? [...new Set(data.piSummary.data.map((p:any) => p?.CUSTOMER_NAME))].filter(Boolean).length : 0, 
+      icon: <Users size={20} />, 
+      color: "bg-primary",
+    }
+  ];
+
+  // Filtering Logic
+  const filteredPIs = useMemo(() => {
+    if (!data?.pendingPIs?.data) return [];
+    return data.pendingPIs.data.filter((pi: any) => {
+      const matchesSearch = 
+        (pi.PI_NO || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (pi.CUSTOMER_NAME || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = !statusFilter || pi.STATUS === statusFilter;
+      const matchesMaterial = !materialFilter || pi.PRODUCT_QUALITY === materialFilter;
+      return matchesSearch && matchesStatus && matchesMaterial;
+    });
+  }, [data, searchTerm, statusFilter, materialFilter]);
+
+  const materials = useMemo(() => {
+    if (!data?.pendingPIs?.data) return [];
+    return [...new Set(data.pendingPIs.data.map((p: any) => p?.PRODUCT_QUALITY).filter(Boolean))];
+  }, [data]);
+
+  return (
+    <>
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {isLoading 
+          ? [1, 2, 3, 4].map(i => <StatSkeleton key={i} />)
+          : stats.map((stat, i) => (
+            <div key={i} className="bg-surface-card p-5 rounded-custom border border-border-main shadow-sm hover:shadow-md transition-all relative overflow-hidden group">
+              <div className={cn("absolute top-0 left-0 w-1.5 h-full", stat.color)} />
+              <div className="flex items-start justify-between">
+                <div className={cn("w-11 h-11 rounded-[calc(var(--radius-value)*0.5)] flex items-center justify-center text-white shadow-lg", stat.color)}>
+                  {stat.icon}
+                </div>
+                {stat.status && (
+                  <span className={cn("px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest", stat.status.color)}>
+                    {stat.status.label}
+                  </span>
+                )}
+              </div>
+              <div className="mt-4 space-y-1">
+                <h4 className="text-xs font-black text-text-dim uppercase tracking-widest">{stat.label}</h4>
+                <div className="num-font text-2xl font-black text-primary tracking-tight leading-none group-hover:scale-105 transition-transform origin-left">
+                  {stat.value || "---"}
+                </div>
+              </div>
+              {stat.trend && (
+                 <div className="mt-4 flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                  <div className={cn("w-1 h-1 rounded-full animate-ping", stat.color)} />
+                  {stat.trend}
+                </div>
+              )}
+            </div>
+          ))
+        }
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Trend Bar Chart */}
+        <div className="xl:col-span-2 bg-surface-card rounded-custom border border-border-main p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="font-black text-primary uppercase text-sm tracking-widest flex items-center gap-2">
+              <BarChart3 size={18} className="text-accent" />
+              Lifting Trend Analysis
+            </h3>
+          </div>
+          <div className="h-[240px]">
+             {isLoading ? (
+               <div className="w-full h-full flex flex-col justify-end gap-2 p-4">
+                 <div className="flex items-end h-full gap-4">
+                   {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                     <Skeleton key={i} className={cn("flex-1", i % 2 === 0 ? "h-2/3" : "h-1/2")} />
+                   ))}
+                 </div>
+               </div>
+             ) : data?.monthly?.data && (
+               <Bar 
+                  data={{
+                    labels: [...data.monthly.data].reverse().map((m: any) => m.monthName),
+                    datasets: [
+                      { 
+                        label: 'Delivered', 
+                        data: [...data.monthly.data].reverse().map((m: any) => m.totalDelivered),
+                        backgroundColor: 'rgba(20, 184, 166, 0.9)',
+                        borderRadius: 6,
+                        maxBarThickness: 12
+                      },
+                      { 
+                        label: 'Pending', 
+                        data: [...data.monthly.data].reverse().map((m: any) => m.totalPending),
+                        backgroundColor: 'rgba(244, 162, 0, 0.3)',
+                        borderRadius: 6,
+                        maxBarThickness: 12
+                      },
+                    ]
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                      padding: { top: 10 }
+                    },
+                    plugins: {
+                      legend: { 
+                        position: 'top',
+                        align: 'end' as const,
+                        onClick: (e, legendItem, legend) => {
+                          const index = legendItem.datasetIndex;
+                          const ci = legend.chart;
+                          if (ci.isDatasetVisible(index!)) {
+                            ci.hide(index!);
+                            legendItem.hidden = true;
+                          } else {
+                            ci.show(index!);
+                            legendItem.hidden = false;
+                          }
+                        },
+                        labels: { 
+                          usePointStyle: true,
+                          boxWidth: 6,
+                          padding: 15,
+                          font: { family: 'Arial', size: 10, weight: 'bold' } 
+                        }
+                      },
+                      tooltip: {
+                        enabled: true,
+                        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#0d1b3e',
+                        titleFont: { size: 12, family: 'Arial', weight: 'bold' },
+                        bodyFont: { size: 13, family: 'Arial' },
+                        padding: 16,
+                        cornerRadius: 12,
+                        displayColors: true,
+                        boxPadding: 8,
+                        callbacks: {
+                          label: function(context) {
+                              let label = context.dataset.label || '';
+                              if (label) {
+                                  label += ': ';
+                              }
+                              if (context.parsed.y !== null) {
+                                  label += context.parsed.y.toLocaleString() + ' kg';
+                              }
+                              return label;
+                          }
+                        }
+                      }
+                    },
+                    scales: {
+                      x: { 
+                        grid: { display: false }, 
+                        ticks: { font: { family: 'Arial', size: 10, weight: 'bold' }, color: '#94a3b8' } 
+                      },
+                      y: { 
+                        beginAtZero: true, 
+                        grid: { color: '#f1f5f9' },
+                        border: { display: false },
+                        ticks: { 
+                          font: { family: 'Arial', size: 10, weight: 'bold' }, 
+                          color: '#94a3b8',
+                          callback: (v:any) => v >= 1000 ? (v/1000) + 'K' : v 
+                        }
+                      }
+                    }
+                  }}
+              />
+             )}
+          </div>
+        </div>
+
+        {/* Top Parties List */}
+        <div className="bg-white rounded-custom border border-slate-200 p-6 shadow-sm flex flex-col">
+          <h3 className="font-black text-primary uppercase text-sm tracking-widest flex items-center gap-2 mb-6">
+            <AlertCircle size={18} className="text-rose-500" />
+            Top Pendings
+          </h3>
+          <div className="flex-1">
+             {isLoading ? <ListSkeleton /> : (
+               <div className="space-y-3">
+                 {data?.topPending?.data?.map((party: any, i: number) => (
+                    <div key={i} className="flex flex-col gap-1.5 p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-accent/20 transition-all group cursor-pointer">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-accent uppercase tracking-widest">{party.party}</span>
+                        <span className="num-font text-xs font-black text-slate-900">{party.totalPending.toLocaleString()} kg</span>
+                      </div>
+                      <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-accent rounded-full transition-all duration-1000"
+                          style={{ width: `${Math.min(100, (party.totalPending / (data.topPending.data[0].totalPending || 1)) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                 ))}
+                 {!data?.topPending?.data?.length && <div className="text-center py-10 opacity-30 font-black uppercase text-xs tracking-widest">No Pendings</div>}
+               </div>
+             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Orders Table */}
+      <div className="bg-white rounded-custom border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <h3 className="font-black text-primary uppercase text-base tracking-widest flex items-center gap-2">
+              <History size={18} className="text-teal-500" />
+              Live Order Pipeline
+            </h3>
+            <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-xs font-black uppercase">{filteredPIs.length} Total</span>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
+             <div className="relative group">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input 
+                  type="text"
+                  placeholder="Search PI or Account..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:border-accent/40 focus:ring-4 focus:ring-accent/5 transition-all w-48"
+                />
+             </div>
+
+             <select 
+               value={statusFilter}
+               onChange={e => setStatusFilter(e.target.value)}
+               className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-accent/40 transition-all"
+             >
+                <option value="">All Status</option>
+                <option value="PENDING">Pending</option>
+                <option value="COMPLETE">Complete</option>
+             </select>
+
+             <select 
+               value={materialFilter}
+               onChange={e => setMaterialFilter(e.target.value)}
+               className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-accent/40 transition-all max-w-[120px]"
+             >
+                <option value="">All Materials</option>
+                {materials.map((m: any) => <option key={m} value={m}>{m}</option>)}
+             </select>
+
+             <div className="h-6 w-px bg-slate-100 mx-1" />
+
+             <button 
+                onClick={exportToCSV}
+                className="flex items-center gap-2 px-3 py-2 bg-accent/10 text-accent rounded-xl text-xs font-black uppercase tracking-widest hover:bg-accent/20 transition-all"
+             >
+                <Download size={12} /> CSV
+             </button>
+             <button className="text-xs font-black text-accent uppercase tracking-widest hover:underline px-2">View All</button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-slate-50">
+                <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">PI# Number</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Account Name</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Material</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Target</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Progress</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {isLoading ? (
+                [1, 2, 3, 4, 5].map(i => (
+                  <tr key={i}>
+                    <td className="px-6 py-5"><Skeleton className="w-16 h-4" /></td>
+                    <td className="px-6 py-5"><Skeleton className="w-32 h-4" /></td>
+                    <td className="px-6 py-5"><Skeleton className="w-24 h-4" /></td>
+                    <td className="px-6 py-5 text-right"><Skeleton className="w-16 h-4 ml-auto" /></td>
+                    <td className="px-6 py-5 text-right"><Skeleton className="w-24 h-4 ml-auto" /></td>
+                    <td className="px-6 py-5 text-center"><Skeleton className="w-12 h-4 mx-auto" /></td>
+                  </tr>
+                ))
+              ) : filteredPIs.length > 0 ? (
+                filteredPIs.slice(0, 10).map((pi: any, i: number) => (
+                  <React.Fragment key={pi.PI_NO}>
+                    <tr 
+                      onClick={() => toggleRow(pi.PI_NO)}
+                      className="hover:bg-slate-50 transition-colors group cursor-pointer border-l-4 border-l-transparent hover:border-l-accent"
+                    >
+                      <td className="px-6 py-5">
+                        <div className="font-black text-primary num-font flex items-center gap-2">
+                          {pi.PI_NO}
+                          {expandedRows.has(pi.PI_NO) ? <ChevronRight size={14} className="rotate-90 text-accent transition-transform" /> : <ChevronRight size={14} className="text-slate-300 transition-transform" />}
+                        </div>
+                        <div className="text-xs text-slate-400 font-bold mt-1 serif-font">{formatDate(pi.INVOICE_DATE)}</div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="font-bold text-slate-700 text-sm">{pi.CUSTOMER_NAME}</div>
+                      </td>
+                      <td className="px-6 py-5 text-sm text-slate-500">{pi.PRODUCT_QUALITY}</td>
+                      <td className="px-6 py-5 text-right num-font font-black text-slate-900 border-x border-slate-50">
+                        {pi.QUANTITY_KG.toLocaleString()} kg
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <div className="flex flex-col items-end gap-1.5">
+                          <div className="num-font font-black text-teal-600 text-sm">{(pi.totalDelivered || 0).toLocaleString()} kg</div>
+                          <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-teal-500 rounded-full" 
+                              style={{ width: `${(pi.totalDelivered / pi.QUANTITY_KG) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-widest",
+                          pi.STATUS === 'COMPLETE' ? "bg-teal-100 text-teal-700" : "bg-blue-100 text-blue-700"
+                        )}>
+                          {pi.STATUS}
+                        </span>
+                      </td>
+                    </tr>
+                    <AnimatePresence>
+                      {expandedRows.has(pi.PI_NO) && (
+                        <tr>
+                          <td colSpan={6} className="p-0 border-none">
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden bg-slate-50/50"
+                            >
+                              <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8 border-b border-slate-100">
+                                <div className="space-y-4">
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Delivery Address</span>
+                                    <span className="text-sm font-bold text-slate-600 leading-relaxed uppercase">
+                                      {pi.DELIVERY_ADDRESS || "Plot 45, Sector 12, Industrial Area, Haridwar, Uttarakhand - 249403"}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Logistics Mode</span>
+                                    <span className="text-sm font-bold text-teal-600 uppercase">External Vendor • Truckload</span>
+                                  </div>
+                                </div>
+                                <div className="space-y-4">
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Contact Person</span>
+                                    <span className="text-sm font-black text-slate-700 uppercase">{pi.CONTACT_PERSON || "Mr. Arvind Shrivastava"}</span>
+                                    {pi.CONTACT_PHONE && <span className="text-xs font-bold text-slate-400 mt-0.5">{pi.CONTACT_PHONE}</span>}
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Payment Terms</span>
+                                    <span className="text-sm font-bold text-slate-600 uppercase flex items-center gap-1.5">
+                                      {pi.PAYMENT_TERMS || "L/C Sight"} • <CreditCard size={12} />
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                                  <div className="flex justify-between items-start">
+                                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Risk Analysis</span>
+                                    <span className="px-2 py-0.5 rounded bg-teal-50 text-teal-600 text-xs font-black">LOW RISK</span>
+                                  </div>
+                                  <div className="mt-4">
+                                    <div className="flex justify-between text-xs font-bold text-slate-600 mb-1">
+                                      <span>Credit Limit Utilization</span>
+                                      <span>42%</span>
+                                    </div>
+                                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                      <div className="h-full bg-accent rounded-full w-[42%]" />
+                                    </div>
+                                  </div>
+                                  <button className="mt-4 w-full py-2 bg-primary text-white text-xs font-black uppercase tracking-widest rounded-lg hover:bg-slate-800 transition-all">
+                                    Initialize Dispatch
+                                  </button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          </td>
+                        </tr>
+                      )}
+                    </AnimatePresence>
+                  </React.Fragment>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-6 py-20 text-center text-slate-300 font-black uppercase text-xs tracking-widest">
+                    No results found matching your filters
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// --- Quick Add Modal ---
+interface QuickAddModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onAdd: (pi: any) => void;
+}
+
+function QuickAddModal({ isOpen, onClose, onAdd }: QuickAddModalProps) {
+  const [formData, setFormData] = useState({
+    PI_NO: '',
+    CUSTOMER_NAME: '',
+    PRODUCT_QUALITY: '',
+    QUANTITY_KG: ''
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onAdd({ ...formData, QUANTITY_KG: Number(formData.QUANTITY_KG), STATUS: 'PENDING', INVOICE_DATE: new Date().toISOString().split('T')[0] });
+    onClose();
+    setFormData({ PI_NO: '', CUSTOMER_NAME: '', PRODUCT_QUALITY: '', QUANTITY_KG: '' });
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-primary/40 backdrop-blur-md"
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="bg-white w-full max-w-md rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative z-10 border border-slate-100"
+          >
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
+                  <Plus size={20} />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-primary uppercase tracking-tight">Manual Injection</h3>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">New Proforma Invoice Record</p>
+                </div>
+              </div>
+              <button 
+                onClick={onClose}
+                className="p-2 text-slate-300 hover:text-slate-600 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">PI Number</label>
+                <input 
+                  required
+                  value={formData.PI_NO}
+                  onChange={e => setFormData({ ...formData, PI_NO: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm outline-none focus:ring-4 focus:ring-accent/10 focus:border-accent/40 font-bold placeholder:text-slate-300"
+                  placeholder="EX: PI/2026/001"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Customer Name</label>
+                <input 
+                  required
+                  value={formData.CUSTOMER_NAME}
+                  onChange={e => setFormData({ ...formData, CUSTOMER_NAME: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm outline-none focus:ring-4 focus:ring-accent/10 focus:border-accent/40 font-bold placeholder:text-slate-300"
+                  placeholder="Legal Entity Name"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Material</label>
+                  <input 
+                    required
+                    value={formData.PRODUCT_QUALITY}
+                    onChange={e => setFormData({ ...formData, PRODUCT_QUALITY: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm outline-none focus:ring-4 focus:ring-accent/10 focus:border-accent/40 font-bold placeholder:text-slate-300"
+                    placeholder="GSM / Quality"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Target Quantity (KG)</label>
+                  <input 
+                    required
+                    type="number"
+                    value={formData.QUANTITY_KG}
+                    onChange={e => setFormData({ ...formData, QUANTITY_KG: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm outline-none focus:ring-4 focus:ring-accent/10 focus:border-accent/40 font-bold placeholder:text-slate-300"
+                    placeholder="5000"
+                  />
+                </div>
+              </div>
+
+              <button 
+                type="submit"
+                className="w-full py-5 rounded-[1.25rem] bg-primary text-white font-black uppercase tracking-widest text-[11px] hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-indigo-900/10 mt-4"
+              >
+                Sync with Mainframe
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// --- Audit Log Page ---
+function AuditLogPage({ logs }: { logs: AuditLogEntry[] }) {
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="bg-white rounded-custom border border-slate-200 p-8 shadow-sm">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+            <History size={20} />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-primary uppercase tracking-tight">System Audit Trail</h3>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Real-time terminal session logs</p>
+          </div>
+        </div>
+
+        <div className="overflow-hidden border border-slate-100 rounded-2xl">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 italic">
+                <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Timestamp</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Navigator</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Action Vector</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">System Metadata</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {logs.map((log) => (
+                <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="text-xs font-mono font-bold text-slate-400">{log.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div className="text-xs font-bold text-slate-300 uppercase mt-0.5">{formatDate(log.timestamp)}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-black text-primary uppercase">{log.userName}</div>
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">{log.userId}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "px-2 py-0.5 rounded text-[11px] font-black uppercase tracking-widest border",
+                      log.action === 'Login' ? "bg-teal-50 text-teal-600 border-teal-100" :
+                      log.action === 'Logout' ? "bg-rose-50 text-rose-600 border-rose-100" :
+                      log.action === 'Create PI' ? "bg-amber-50 text-amber-600 border-amber-100" :
+                      "bg-slate-50 text-slate-600 border-slate-100"
+                    )}>
+                      {log.action}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-xs font-bold text-slate-500 max-w-xs">{log.details}</td>
+                </tr>
+              ))}
+              {!logs.length && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-20 text-center text-slate-300 font-extrabold uppercase text-xs tracking-[0.3em]">
+                    Standby • No Logged Events
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Login Page ---
+function LoginPage({ onLogin }: { onLogin: (u: User) => void }) {
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('admin123');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSignIn = async () => {
+    setIsLoading(true);
+    setError('');
+    const res = await apiCall('login', { username, password });
+    if (res.success) {
+      onLogin(res.user);
+    } else {
+      setError(res.error || 'Identity verification failed');
+    }
+    setIsLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-primary flex items-center justify-center p-6 relative overflow-hidden font-main">
+      <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-accent rounded-full blur-[150px] opacity-10" />
+      <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-teal-500 rounded-full blur-[150px] opacity-10" />
+      
+      <div className="w-full max-w-sm p-8 md:p-12 rounded-[2.5rem] bg-white/5 backdrop-blur-2xl border border-white/10 shadow-2xl relative z-10 flex flex-col items-center">
+        <div className="w-18 h-18 rounded-[1.5rem] bg-accent flex items-center justify-center text-white mb-8 shadow-2xl shadow-accent/20 ring-4 ring-white/5">
+          <Building size={36} />
+        </div>
+        
+        <div className="text-center mb-10">
+          <h1 className="text-3xl font-black text-white tracking-tight leading-none">YAJUR FIBRES</h1>
+          <p className="text-xs font-black text-slate-500 uppercase tracking-[0.25em] mt-4">Enterprise Lifting Engine</p>
+        </div>
+
+        <div className="w-full space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Identity UID</label>
+            <div className="relative group">
+              <Users size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-accent transition-colors" />
+              <input 
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-white text-sm outline-none focus:ring-4 focus:ring-accent/20 focus:border-accent/50 transition-all font-bold placeholder:text-slate-700"
+                placeholder="User name"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Access Token</label>
+            <div className="relative group">
+              <LogOut size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-accent transition-colors rotate-180" />
+              <input 
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-white text-sm outline-none focus:ring-4 focus:ring-accent/20 focus:border-accent/50 transition-all font-bold placeholder:text-slate-700"
+                placeholder="••••••••"
+              />
+            </div>
+          </div>
+
+          {error && <div className="text-xs font-black text-rose-500 uppercase tracking-widest text-center animate-pulse">{error}</div>}
+
+          <button 
+            onClick={handleSignIn}
+            disabled={isLoading}
+            className="w-full py-5 rounded-[1.25rem] bg-accent text-white font-black uppercase tracking-widest text-[11px] hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-accent/20 disabled:opacity-50 disabled:grayscale flex items-center justify-center"
+          >
+            {isLoading ? "Validating..." : "Initiate Login"}
+          </button>
+        </div>
+
+        <div className="mt-10 pt-8 border-t border-white/5 w-full text-center">
+          <p className="text-slate-600 text-xs font-black uppercase tracking-widest leading-relaxed">
+            Authorized Personnel Only<br />Systems Monitoring Active
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Placeholder for other modules ---
+function PlaceholderModule({ page, onBack }: { page: string, onBack: () => void }) {
+  return (
+    <div className="bg-white rounded-custom border border-slate-200 p-12 shadow-sm flex flex-col items-center justify-center text-center">
+      <div className="w-20 h-20 rounded-[2rem] bg-slate-50 flex items-center justify-center text-slate-300 mb-6 border border-slate-100">
+        <Activity size={40} className="animate-pulse" />
+      </div>
+      <h3 className="text-xl font-black text-primary uppercase tracking-tight">{page.replace('-', ' ')} Module</h3>
+      <p className="text-sm text-slate-400 mt-2 max-w-sm">This system module is currently being optimized for enterprise distribution. Please check the dashboard for live updates.</p>
+      <button 
+        onClick={onBack}
+        className="mt-8 px-8 py-3 rounded-custom bg-slate-100 text-slate-600 text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+      >
+        Return to Engine
+      </button>
+    </div>
+  );
+}
+
+// --- Settings Page ---
+interface SettingsPageProps {
+  theme: ThemeSettings;
+  onThemeChange: (theme: ThemeSettings) => void;
+}
+
+function SettingsPage({ theme, onThemeChange }: SettingsPageProps) {
+  const fonts: { id: FontStyle; label: string }[] = [
+    { id: 'sans', label: 'Inter (Modern Sans)' },
+    { id: 'serif', label: 'Playfair (Elegant Serif)' },
+    { id: 'mono', label: 'JetBrains (Technical Mono)' },
+    { id: 'display', label: 'Outfit (Bold Display)' },
+  ];
+
+  const presets = [
+    { id: 'slate-light', name: 'Slate Light', primary: '#0d1b3e', accent: '#f59e0b', type: 'light' },
+    { id: 'emerald-light', name: 'Emerald Light', primary: '#064e3b', accent: '#10b981', type: 'light' },
+    { id: 'amber-light', name: 'Amber Light', primary: '#78350f', accent: '#f59e0b', type: 'light' },
+    { id: 'midnight-dark', name: 'Midnight Dark', primary: '#3b82f6', accent: '#60a5fa', type: 'dark' },
+    { id: 'deep-blue-dark', name: 'Deep Blue Dark', primary: '#38bdf8', accent: '#0ea5e9', type: 'dark' },
+    { id: 'forest-dark', name: 'Forest Dark', primary: '#10b981', accent: '#059669', type: 'dark' },
+  ];
+
+  const radiusOptions: ThemeSettings['borderRadius'][] = ['none', 'small', 'medium', 'large', 'full'];
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="bg-surface-card rounded-custom border border-border-main p-8 shadow-sm">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
+            <Settings size={20} />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-primary uppercase tracking-tight">Theme Personalization</h3>
+            <p className="text-xs text-text-dim font-bold uppercase tracking-widest">Global visual distribution settings</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+          {/* Color Settings */}
+          <div className="space-y-8">
+            <div>
+              <label className="text-xs font-black text-text-dim uppercase tracking-[0.2em] mb-4 block">Visual Presets (3 Light / 3 Dark)</label>
+              <div className="grid grid-cols-2 gap-3">
+                {presets.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => onThemeChange({ ...theme, themeId: p.id, primaryColor: p.primary, accentColor: p.accent })}
+                    className={cn(
+                      "group flex items-center gap-3 p-3 rounded-2xl border-2 transition-all text-left",
+                      theme.themeId === p.id ? "border-accent bg-accent/5" : "border-border-main hover:bg-surface-muted"
+                    )}
+                  >
+                    <div className="flex -space-x-2">
+                      <div className="w-8 h-8 rounded-full border-2 border-surface-card shadow-sm" style={{ backgroundColor: p.primary }} />
+                      <div className="w-8 h-8 rounded-full border-2 border-surface-card shadow-sm" style={{ backgroundColor: p.accent }} />
+                    </div>
+                    <div>
+                        <span className="text-xs font-black uppercase tracking-widest text-text-main block">{p.name}</span>
+                        <span className="text-xs font-bold uppercase text-text-dim">{p.type} mode</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Primary Color</label>
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                  <input 
+                    type="color" 
+                    value={theme.primaryColor}
+                    onChange={e => onThemeChange({ ...theme, primaryColor: e.target.value })}
+                    className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-none"
+                  />
+                  <span className="text-xs font-mono font-bold text-slate-600 uppercase">{theme.primaryColor}</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Accent Color</label>
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                  <input 
+                    type="color" 
+                    value={theme.accentColor}
+                    onChange={e => onThemeChange({ ...theme, accentColor: e.target.value })}
+                    className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-none"
+                  />
+                  <span className="text-xs font-mono font-bold text-slate-600 uppercase">{theme.accentColor}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Typography & Shape */}
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-2 block">Typography Scale</label>
+              <div className="grid grid-cols-1 gap-2">
+                {fonts.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => onThemeChange({ ...theme, fontFamily: f.id })}
+                    className={cn(
+                      "flex items-center justify-between p-4 rounded-2xl border-2 transition-all text-left",
+                      theme.fontFamily === f.id ? "border-accent bg-accent/5" : "border-slate-100 hover:border-slate-200"
+                    )}
+                  >
+                    <span className={cn("text-sm font-bold", f.id === 'serif' ? 'serif-font' : f.id === 'mono' ? 'font-mono' : 'font-sans')}>
+                      {f.label}
+                    </span>
+                    {theme.fontFamily === f.id && <div className="w-2 h-2 rounded-full bg-accent" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-2 block">Border Radius Factor</label>
+              <div className="flex items-center justify-between p-2 rounded-2xl bg-slate-50 border border-slate-100">
+                {radiusOptions.map(r => (
+                  <button
+                    key={r}
+                    onClick={() => onThemeChange({ ...theme, borderRadius: r })}
+                    className={cn(
+                      "flex-1 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all",
+                      theme.borderRadius === r ? "bg-white text-primary shadow-sm" : "text-slate-400 hover:text-slate-600"
+                    )}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-center gap-4 mt-6">
+                 <div className="w-12 h-12 border-2 border-accent/20 flex items-center justify-center rounded-custom bg-white">
+                   <div className="w-4 h-4 bg-accent rounded-[calc(var(--radius-value)*0.25)]" />
+                 </div>
+                 <p className="text-xs text-slate-400 font-bold uppercase mt-2">Active Spec Example</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-12 pt-8 border-t border-slate-100 flex items-center justify-between">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Settings are auto-persisted to browser storage</p>
+          <button 
+            onClick={() => onThemeChange(DEFAULT_THEME)}
+            className="px-6 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-black uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all"
+          >
+            Reset to Default
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
