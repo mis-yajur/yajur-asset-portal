@@ -667,7 +667,7 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
           
           // Generate monthly mock trend for chart (just 1 month of current data)
           const currentMonthName = new Date().toLocaleString('default', { month: 'short' });
-          const monthlyArr = [{ month: currentMonthName, totalDelivered, totalPending }];
+          const monthlyArr = [{ monthName: currentMonthName, totalDelivered, totalPending }];
 
           setData({
              monthly: { data: monthlyArr },

@@ -373,7 +373,7 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
             </div>
           ) : (
             <div className="p-6 space-y-12">
-              {Object.entries(groupedItems).map(([groupKey, items]) => (
+              {Object.entries(groupedItems).map(([groupKey, items]: [string, any[]]) => (
                 <div key={groupKey} className="border border-border-main rounded-xl overflow-hidden bg-white shadow-sm">
                   <div className="bg-surface-muted flex p-4 border-b border-border-main items-center justify-between">
                     <h3 className="font-black text-primary-main uppercase tracking-wider text-base flex items-center">

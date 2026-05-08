@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { apiCall } from '../services/api';
 import { cn, formatDate } from '../lib/utils';
-import type { Lifting, PI, Notification, DeliveryRecord } from '../types';
+import type { Lifting, PI, Customer, Notification, DeliveryRecord } from '../types';
 
 interface LiftingModuleProps {
   onNotify: (title: string, message: string, type?: Notification['type']) => void;
