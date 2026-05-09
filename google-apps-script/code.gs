@@ -137,7 +137,15 @@ function getData(sheetName) {
 function addRow(sheetName, params) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const newRow = headers.map(h => params[h] || "");
+  
+  if (sheetName === 'pi_data' && !params.CREATED_AT) {
+    params.CREATED_AT = new Date().toISOString();
+  }
+
+  const newRow = headers.map(h => {
+    const val = params[h];
+    return (val !== undefined && val !== null) ? val : "";
+  });
   sheet.appendRow(newRow);
   return { success: true };
 }
@@ -148,7 +156,10 @@ function bulkUpload(sheetName, rows) {
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   
   const dataToAppend = rows.map(params => {
-    return headers.map(h => params[h] || "");
+    return headers.map(h => {
+      const val = params[h];
+      return (val !== undefined && val !== null) ? val : "";
+    });
   });
   
   sheet.getRange(sheet.getLastRow() + 1, 1, dataToAppend.length, headers.length).setValues(dataToAppend);
@@ -162,14 +173,16 @@ function updateRow(sheetName, idKey, params) {
   const idIndex = headers.indexOf(idKey);
   
   for (let i = 1; i < data.length; i++) {
-    if (data[i][idIndex] == params[idKey]) {
+    if (String(data[i][idIndex]) === String(params[idKey])) {
       const rowRange = sheet.getRange(i + 1, 1, 1, headers.length);
-      const updatedRow = headers.map(h => params[h] !== undefined ? params[h] : data[i][headers.indexOf(h)]);
+      const updatedRow = headers.map((h, idx) => {
+        return params[h] !== undefined ? params[h] : data[i][idx];
+      });
       rowRange.setValues([updatedRow]);
       return { success: true };
     }
   }
-  throw new Error('Record not found with ID: ' + params[idKey]);
+  throw new Error('Record not found with ' + idKey + ': ' + params[idKey]);
 }
 
 function deleteRow(sheetName, idKey, idValue) {
@@ -179,7 +192,7 @@ function deleteRow(sheetName, idKey, idValue) {
   const idIndex = headers.indexOf(idKey);
   
   for (let i = 1; i < data.length; i++) {
-    if (data[i][idIndex] == idValue) {
+    if (String(data[i][idIndex]) === String(idValue)) {
       sheet.deleteRow(i + 1);
       return { success: true };
     }
@@ -196,7 +209,10 @@ function syncLedger(rows) {
   
   if (rows && rows.length > 0) {
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    const dataToSync = rows.map(r => headers.map(h => r[h] || ""));
+    const dataToSync = rows.map(r => headers.map(h => {
+      const val = r[h];
+      return (val !== undefined && val !== null) ? val : "";
+    }));
     sheet.getRange(2, 1, dataToSync.length, headers.length).setValues(dataToSync);
   }
   return { success: true };

@@ -120,13 +120,28 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentPI?.PI_NO || !currentPI?.CUSTOMER_NAME) return;
+    if (!currentPI?.PI_NO) {
+      onNotify('Validation Error', 'PI Sequence ID is required', 'error');
+      return;
+    }
 
     setIsLoading(true);
     try {
       const isEdit = piData.some(p => p.PI_NO === currentPI.PI_NO);
       const action = isEdit ? 'updatePI' : 'addPI';
-      const res = await apiCall(action, currentPI);
+      
+      const payload = {
+        ...currentPI,
+        CUSTOMER_NAME: currentPI.CUSTOMER_NAME || 'GENERAL ACCOUNT',
+        SELLER_NAME: 'Yajur Lifting',
+        SELLER_GSTIN: '19AAECS2882B3ZB',
+        SELLER_CIN: 'U17100WB1980PLC032918',
+        CERT_NO: 'BVFR14492922',
+        STATUS: currentPI.STATUS || 'RUNNING',
+        CREATED_AT: currentPI.CREATED_AT || new Date().toISOString()
+      };
+
+      const res = await apiCall(action, payload);
       
       if (res.success) {
         onNotify('Success', `PI ${currentPI.PI_NO} synchronized`, 'success');
