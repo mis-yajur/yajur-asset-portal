@@ -136,14 +136,18 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
           newHistoryItem
       ]);
 
+      const remainingKg = selectedLifting.REMAINING_KG - newDelivery.quantityKg;
+      const isComplete = remainingKg < 100;
+      
       const updatedLifting = {
         ...selectedLifting,
         DELIVERED_KG: selectedLifting.DELIVERED_KG + newDelivery.quantityKg,
-        REMAINING_KG: selectedLifting.REMAINING_KG - newDelivery.quantityKg,
+        REMAINING_KG: Math.max(0, remainingKg),
         LAST_DELIVERY_DATE: newDelivery.date,
         LAST_QTY: newDelivery.quantityKg,
         HISTORY: newHistoryJson,
-        NOTES: newHistoryJson
+        NOTES: newHistoryJson,
+        STATUS: isComplete ? 'COMPLETE' : selectedLifting.STATUS
       };
 
       const res = await apiCall('updateLifting', updatedLifting);
@@ -327,16 +331,16 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                         <div className="flex flex-col items-center justify-center gap-1">
                            <div className="flex gap-4">
                               <div className="text-center">
-                                <div className="text-[11px] font-black text-slate-500 uppercase tracking-tighter">Target</div>
+                                <div className="text-[11px] font-black text-slate-500 uppercase tracking-tighter">Inward (Kg)</div>
                                 <div className="text-sm font-black text-slate-900">{item.TARGET_KG.toLocaleString()}kg</div>
                               </div>
                               <div className="text-center">
-                                <div className="text-[11px] font-black text-slate-500 uppercase tracking-tighter">Delivered</div>
+                                <div className="text-[11px] font-black text-slate-500 uppercase tracking-tighter">Lifted (Kg)</div>
                                 <div className="text-sm font-black text-teal-600">{item.DELIVERED_KG.toLocaleString()}kg</div>
                               </div>
                            </div>
                            <div className="w-full max-w-[120px] pt-1 mt-1 border-t border-slate-100 text-center">
-                             <div className="text-[11px] font-black text-slate-500 uppercase tracking-tighter">Balance</div>
+                             <div className="text-[11px] font-black text-slate-500 uppercase tracking-tighter">Balance (Kg)</div>
                              <div className={cn("text-sm font-black", item.REMAINING_KG < 100 ? "text-teal-600" : "text-rose-600")}>
                                {item.REMAINING_KG <= 0 ? "FULFILLED" : `${item.REMAINING_KG.toLocaleString()}kg`}
                              </div>

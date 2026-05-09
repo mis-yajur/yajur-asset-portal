@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { 
   BarChart, 
   Search, 
   Download, 
   FileText, 
-  Calendar, 
+  Calendar as LucideCalendar, 
   Filter,
   CheckCircle2,
   Clock,
@@ -16,7 +18,8 @@ import {
   Users,
   FileSpreadsheet,
   BookOpen,
-  UserCheck
+  UserCheck,
+  FileText as FilePdf
 } from 'lucide-react';
 import { apiCall } from '../services/api';
 import { cn, formatDate } from '../lib/utils';
@@ -69,13 +72,54 @@ export default function ReportsModule({ onNotify, onLog }: ReportsModuleProps) {
     onLog('CSV Export', `Generated spreadsheet for ${title}`);
   };
 
+  const downloadPDF = (data: any[], title: string, headers: string[]) => {
+    if (!data.length) return;
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(20);
+    doc.text('YAJUR FIBRES LIMITED', 105, 15, { align: 'center' });
+    doc.setFontSize(14);
+    doc.text(title.toUpperCase(), 105, 25, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, 32, { align: 'center' });
+    doc.text(`Period: ${formatDate(dateFrom)} to ${formatDate(dateTo)}`, 105, 38, { align: 'center' });
+    
+    // Table
+    const tableData = data.map(item => {
+        if (activeReport === 'customerWise' || title.toLowerCase().includes('customer')) {
+            return [item.account || '', Number(item.totalDelivered || 0).toLocaleString() + 'kg', Number(item.totalPending || 0).toLocaleString() + 'kg'];
+        }
+        if (activeReport === 'piWise' || title.toLowerCase().includes('p.i.')) {
+            return [item.piNo || '', Number(item.totalDelivered || 0).toLocaleString() + 'kg', Number(item.totalPending || 0).toLocaleString() + 'kg'];
+        }
+        if (activeReport === 'signatoryWise' || title.toLowerCase().includes('signatory')) {
+            return [item.signatory || '', item.totalPI || '0', Number(item.totalQty || 0).toLocaleString() + 'kg', item.pending || '0'];
+        }
+        return Object.values(item).map(v => String(v || ''));
+    });
+
+    autoTable(doc, {
+      head: [headers],
+      body: tableData,
+      startY: 45,
+      theme: 'grid',
+      headStyles: { fillColor: [13, 27, 62], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 4 },
+      alternateRowStyles: { fillColor: [248, 250, 252] }
+    });
+    
+    doc.save(`${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+    onNotify('Exported', `${title} PDF generated`, 'success');
+  };
+
   const reportCards = [
-    { id: 'customerWise', label: 'Customer-wise Lifting', icon: <Users />, color: 'blue', data: reportsData?.customerWise, headers: ['Account', 'Delivered (kg)', 'Pending (kg)'] },
-    { id: 'piWise', label: 'P.I.-wise Summary', icon: <FileSpreadsheet />, color: 'teal', data: reportsData?.piWise, headers: ['PI No.', 'Delivered (kg)', 'Pending (kg)'] },
-    { id: 'monthWise', label: 'Month-wise Trend', icon: <Calendar />, color: 'indigo', data: reportsData?.monthWise, headers: ['Period', 'Delivered (kg)', 'Pending (kg)'] },
+    { id: 'customerWise', label: 'Customer-wise Lifting', icon: <Users />, color: 'blue', data: reportsData?.customerWise, headers: ['Account', 'Target (kg)', 'Delivered (kg)', 'Balance (kg)'] },
+    { id: 'piWise', label: 'P.I.-wise Summary', icon: <FileSpreadsheet />, color: 'teal', data: reportsData?.piWise, headers: ['PI No.', 'Inward (kg)', 'Delivered (kg)', 'Balance (kg)'] },
+    { id: 'monthWise', label: 'Month-wise Trend', icon: <LucideCalendar />, color: 'indigo', data: reportsData?.monthWise, headers: ['Period', 'Delivered (kg)', 'Pending (kg)'] },
     { id: 'signatoryWise', label: 'Signatory Report', icon: <UserCheck />, color: 'amber', data: reportsData?.signatoryWise, headers: ['Signatory', 'PI Count', 'Quality (kg)', 'Remaining'] },
     { id: 'pendingPI', label: 'Pending P.I. List', icon: <Clock />, color: 'rose', data: reportsData?.pendingPIs, headers: ['PI No.', 'Date', 'Customer', 'Quantum'] },
-    { id: 'allLifting', label: 'Delivery Ledger', icon: <BookOpen />, color: 'slate', data: reportsData?.allLifting, headers: ['ID', 'Account', 'PI No.', 'Qty (kg)', 'Status'] }
+    { id: 'allLifting', label: 'Delivery Ledger', icon: <BookOpen />, color: 'slate', data: reportsData?.allLifting, headers: ['ID', 'Account', 'PI No.', 'Inward (kg)', 'Delivered (kg)', 'Balance (kg)'] }
   ];
 
   return (
@@ -83,7 +127,7 @@ export default function ReportsModule({ onNotify, onLog }: ReportsModuleProps) {
       {/* Date Filters */}
       <div className="bg-white p-6 rounded-custom border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-4">
         <div className="flex items-center gap-3">
-            <Calendar size={18} className="text-slate-400" />
+            <LucideCalendar size={18} className="text-slate-400" />
             <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Audit Period</span>
         </div>
         <div className="flex flex-1 gap-3 w-full md:w-auto">
@@ -119,8 +163,11 @@ export default function ReportsModule({ onNotify, onLog }: ReportsModuleProps) {
                 >
                     View Details <ChevronRight size={14} />
                 </button>
-                <button onClick={() => downloadCSV(report.data || [], report.label)} className="p-2 text-slate-300 hover:text-accent hover:bg-accent/5 rounded-lg transition-all">
+                <button onClick={() => downloadCSV(report.data || [], report.label)} className="p-2 text-slate-300 hover:text-accent hover:bg-accent/5 rounded-lg transition-all" title="Download CSV">
                     <Download size={16} />
+                </button>
+                <button onClick={() => downloadPDF(report.data || [], report.label, report.headers)} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all" title="Download PDF">
+                    <FilePdf size={16} />
                 </button>
             </div>
           </div>
@@ -140,6 +187,12 @@ export default function ReportsModule({ onNotify, onLog }: ReportsModuleProps) {
                 <div className="flex gap-2">
                     <button onClick={() => downloadCSV(reportCards.find(r => r.id === activeReport)?.data || [], reportCards.find(r => r.id === activeReport)?.label || '')} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
                         <Download size={14} /> CSV
+                    </button>
+                    <button onClick={() => {
+                        const r = reportCards.find(rc => rc.id === activeReport);
+                        if(r) downloadPDF(r.data || [], r.label, r.headers);
+                    }} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                        <FilePdf size={14} /> PDF
                     </button>
                     <button onClick={() => setActiveReport(null)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
                         <Activity size={24} className="rotate-45" />
@@ -163,11 +216,13 @@ export default function ReportsModule({ onNotify, onLog }: ReportsModuleProps) {
                             <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                                {activeReport === 'customerWise' && [
                                   <td className="px-6 py-4 text-sm font-black text-primary uppercase">{item.account}</td>,
+                                  <td className="px-6 py-4 text-sm font-black text-indigo-600">{(Number(item.totalDelivered) + Number(item.totalPending)).toLocaleString()}kg</td>,
                                   <td className="px-6 py-4 text-sm font-black text-teal-600">{Number(item.totalDelivered).toLocaleString()}kg</td>,
                                   <td className="px-6 py-4 text-sm font-black text-rose-500">{Number(item.totalPending).toLocaleString()}kg</td>
                                ]}
                                {activeReport === 'piWise' && [
                                   <td className="px-6 py-4 text-sm font-black text-primary">{item.piNo}</td>,
+                                  <td className="px-6 py-4 text-sm font-black text-indigo-600">{(Number(item.totalDelivered) + Number(item.totalPending)).toLocaleString()}kg</td>,
                                   <td className="px-6 py-4 text-sm font-black text-teal-600">{Number(item.totalDelivered).toLocaleString()}kg</td>,
                                   <td className="px-6 py-4 text-sm font-black text-rose-500">{Number(item.totalPending).toLocaleString()}kg</td>
                                ]}
@@ -192,10 +247,9 @@ export default function ReportsModule({ onNotify, onLog }: ReportsModuleProps) {
                                   <td className="px-6 py-4 text-xs font-black text-slate-400">{item.LIFTING_ID}</td>,
                                   <td className="px-6 py-4 text-sm font-black text-primary uppercase">{item.ACCOUNT}</td>,
                                   <td className="px-6 py-4 text-sm font-black text-accent">{item.PI_NO}</td>,
+                                  <td className="px-6 py-4 text-sm font-black text-indigo-600">{Number(item.TARGET_KG).toLocaleString()}kg</td>,
                                   <td className="px-6 py-4 text-sm font-black text-teal-600">{Number(item.DELIVERED_KG).toLocaleString()}kg</td>,
-                                  <td className="px-6 py-4">
-                                     <span className={cn("px-2 py-0.5 rounded text-[11px] font-black uppercase tracking-widest", item.STATUS === 'COMPLETE' ? "bg-teal-100 text-teal-700" : "bg-blue-100 text-blue-700")}>{item.STATUS}</span>
-                                  </td>
+                                  <td className="px-6 py-4 text-sm font-black text-rose-500">{Number(item.REMAINING_KG).toLocaleString()}kg</td>
                                ]}
                             </tr>
                          )

@@ -58,7 +58,7 @@ export interface Product {
   QLTY_CODE: string;
   QLTY_NAME: string;
   HSN_CODE?: string;
-  TYPE: 'Yarn' | 'Fibre' | 'Fabric' | 'Other';
+  TYPE: string;
   CREATED_DATE?: string;
 }
 

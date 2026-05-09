@@ -10,7 +10,6 @@ import {
   Tag,
   Hash,
   Layers,
-  Calendar,
   AlertCircle,
   ChevronLeft,
   ChevronRight

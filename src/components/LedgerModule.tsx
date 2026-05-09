@@ -52,32 +52,47 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
 
     const piMap = new Map<string, any>();
     piData.forEach(pi => {
-      piMap.set((pi.PI_NO || '').trim(), pi);
+      const piKey = (pi.PI_NO || '').trim();
+      piMap.set(piKey, pi);
 
       // Stock Ledger Entry: Inward (Production)
       stockEntries.push({
         date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
         type: 'Stock Prepared',
-        account: 'Factory / Master',
-        piNo: pi.PI_NO,
+        account: pi.CUSTOMER_NAME || 'Factory / Master',
+        piNo: piKey,
         qtyIn: Number(pi.QUANTITY_KG) || 0,
         qtyOut: 0,
         rate: Number(pi.RATE_PER_UNIT) || 0,
         amount: 0,
         remarks: `PI Created: ${pi.PRODUCT_QUALITY || ''}`
       });
+
+      // Party Ledger Entry: Initial Target (Informational)
+      partyEntries.push({
+        date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
+        type: 'PI Target Lifting',
+        account: pi.CUSTOMER_NAME,
+        piNo: piKey,
+        qty: Number(pi.QUANTITY_KG) || 0,
+        rate: Number(pi.RATE_PER_UNIT) || 0,
+        debitAmt: 0,
+        creditAmt: 0,
+        remarks: `Target set for ${pi.PRODUCT_QUALITY}`
+      });
     });
 
     liftingData.forEach(lift => {
-      const piInfo = piMap.get((lift.PI_NO || '').trim()) || {};
-      const rate = Number(piInfo.RATE_PER_UNIT) || 0;
+      const piKey = (lift.PI_NO || '').trim();
+      const piInfo = piMap.get(piKey) || {};
+      const rate = Number(piInfo.RATE_PER_UNIT || lift.RATE) || 0;
 
       const history = Array.isArray(lift.HISTORY) ? lift.HISTORY : [];
       let mappedDeliveries = history.map(h => ({
         date: h.deliveryDate || h.timestamp,
         type: 'Delivery (Sales)',
         account: lift.ACCOUNT,
-        piNo: lift.PI_NO,
+        piNo: piKey,
         qtyOut: Number(h.quantityKg) || 0,
         rate: rate,
         amount: (Number(h.quantityKg) || 0) * rate,
@@ -90,7 +105,7 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
           date: lift.LAST_DELIVERY_DATE || lift.DATE || new Date().toISOString(),
           type: 'Legacy Delivery',
           account: lift.ACCOUNT,
-          piNo: lift.PI_NO,
+          piNo: piKey,
           qtyOut: Number(lift.DELIVERED_KG) || 0,
           rate: rate,
           amount: (Number(lift.DELIVERED_KG) || 0) * rate,
@@ -229,19 +244,20 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     let tableData = [];
     let head = [];
     if (activeTab === 'party') {
-      head = [['Account', 'Date', 'Type', 'PI Ref', 'Qty & Rate', 'Debit Amt', 'Credit Amt', 'Balance']];
+      head = [['Account', 'Date', 'Type', 'PI Ref', 'Qty', 'Rate', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)']];
       tableData = filteredLedger.filter(e => !e.isSummary).map(e => [
         e.group,
         new Date(e.date).toLocaleDateString(),
         e.type,
         e.piNo,
-        `${e.qty} kg @ ${e.rate || '-'}`,
+        e.qty + ' kg',
+        '₹' + (e.rate || 0),
         e.debitAmt?.toFixed(2),
         e.creditAmt?.toFixed(2),
         e.balanceAmt?.toFixed(2)
       ]);
     } else {
-      head = [['PI No', 'Date', 'Type', 'Account', 'Stock In', 'Delivered Out', 'Stock Balance']];
+      head = [['PI No', 'Date', 'Type', 'Account', 'Inward (Kg)', 'Outward (Kg)', 'Balance (Kg)']];
       tableData = filteredLedger.map(e => [
         e.group,
         new Date(e.date).toLocaleDateString(),

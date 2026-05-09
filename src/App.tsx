@@ -22,7 +22,9 @@ import {
   X,
   CreditCard,
   Building,
-  Palette
+  Palette,
+  Calendar,
+  TrendingUp
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -288,7 +290,7 @@ export default function App() {
 
           <div className="space-y-6">
             {currentPage === 'dashboard' ? (
-              <Dashboard user={user} onNotify={addNotification} onLog={logAction} />
+              <Dashboard user={user} onNotify={addNotification} onLog={logAction} onNavigate={setCurrentPage} />
             ) : currentPage === 'lifting' ? (
               <LiftingModule onNotify={addNotification} onLog={logAction} />
             ) : currentPage === 'pi' ? (
@@ -607,10 +609,67 @@ function ListSkeleton() {
 }
 
 // --- Dashboard Sub-module ---
-function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t: string, m: string, type?: Notification['type']) => void, onLog: (a: string, d: string) => void }) {
+function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, onNotify: (t: string, m: string, type?: Notification['type']) => void, onLog: (a: string, d: string) => void, onNavigate: (page: Page) => void }) {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  
+  // Dashboard Card Popups
+  const [activePopup, setActivePopup] = useState<{ title: string, data: any[], type: 'monthly' | 'yearly' | 'parties' | 'pi' } | null>(null);
+
+  const exportDashboardData = (data: any[], type: string, format: 'csv' | 'pdf') => {
+    if (!data || !data.length) return;
+    
+    if (format === 'csv') {
+      const headers = type === 'pi' 
+        ? ["PI_NO", "CUSTOMER_NAME", "PRODUCT_QUALITY", "QUANTITY_KG", "STATUS"]
+        : ["Label", "Delivered_KG", "Target_KG", "Pending_KG"];
+      
+      const rows = data.map(item => {
+        if (type === 'pi') return [item.PI_NO, item.CUSTOMER_NAME, item.PRODUCT_QUALITY, item.QUANTITY_KG, item.STATUS];
+        return [item.monthName || item.yearKey || item.party, item.delivered || item.totalDelivered || 0, item.target || item.totalTarget || 0, item.pending || item.totalPending || 0];
+      });
+
+      const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${type}_report_${new Date().toISOString().split('T')[0]}.csv`);
+      link.click();
+    } else {
+      // PDF Export using jsPDF
+      import('jspdf').then(({ default: jsPDF }) => {
+        import('jspdf-autotable').then(() => {
+          const doc = new jsPDF();
+          doc.setFontSize(20);
+          doc.text(activePopup?.title || "Report", 14, 22);
+          doc.setFontSize(11);
+          doc.setTextColor(100);
+          doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+          
+          const headers = type === 'pi' 
+            ? [["PI Number", "Customer", "Quality", "Target (kg)", "Status"]]
+            : [["Label", "Delivered (kg)", "Target (kg)", "Pending (kg)"]];
+          
+          const rows = data.map(item => {
+            if (type === 'pi') return [item.PI_NO, item.CUSTOMER_NAME, item.PRODUCT_QUALITY, item.QUANTITY_KG, item.STATUS];
+            return [item.monthName || item.yearKey || item.party, (item.delivered || item.totalDelivered || 0).toLocaleString(), (item.target || item.totalTarget || 0).toLocaleString(), (item.pending || item.totalPending || 0).toLocaleString()];
+          });
+
+          (doc as any).autoTable({
+            startY: 40,
+            head: headers,
+            body: rows,
+            theme: 'striped',
+            headStyles: { fillColor: [13, 27, 62] }
+          });
+          
+          doc.save(`${type}_report.pdf`);
+        });
+      });
+    }
+  };
 
   // Filters State
   const [searchTerm, setSearchTerm] = useState('');
@@ -639,19 +698,38 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
           
           let totalDelivered = 0;
           const pendingDict: Record<string, { pending: number; target: number; delivered: number }> = {};
-          
+          const monthDict: Record<string, { delivered: number; target: number; pending: number }> = {};
+          const yearDict: Record<string, { delivered: number; target: number; pending: number }> = {};
+
           lifts.forEach((l: any) => {
             const delivered = Number(l.DELIVERED_KG) || 0;
             const target = Number(l.TARGET_KG) || 0;
-            const pending = target - delivered;
+            // < 100kg rule: if remaining < 100kg, treat as 0 pending
+            const actualPending = Math.max(0, target - delivered);
+            const pending = actualPending < 100 ? 0 : actualPending;
             
             totalDelivered += delivered;
             
             const pName = l.ACCOUNT || 'Unknown';
             if (!pendingDict[pName]) pendingDict[pName] = { pending: 0, target: 0, delivered: 0 };
-            pendingDict[pName].pending += Math.max(0, pending);
+            pendingDict[pName].pending += pending;
             pendingDict[pName].target += target;
             pendingDict[pName].delivered += delivered;
+
+            // Process Timeline
+            const date = l.LAST_DELIVERY_DATE ? new Date(l.LAST_DELIVERY_DATE) : new Date();
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            const yearKey = `${date.getFullYear()}`;
+
+            if (!monthDict[monthKey]) monthDict[monthKey] = { delivered: 0, target: 0, pending: 0 };
+            monthDict[monthKey].delivered += delivered;
+            monthDict[monthKey].target += target;
+            monthDict[monthKey].pending += pending;
+
+            if (!yearDict[yearKey]) yearDict[yearKey] = { delivered: 0, target: 0, pending: 0 };
+            yearDict[yearKey].delivered += delivered;
+            yearDict[yearKey].target += target;
+            yearDict[yearKey].pending += pending;
           });
           
           const topPendingArr = Object.keys(pendingDict)
@@ -665,12 +743,24 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
              
           const totalPending = topPendingArr.reduce((s, p) => s + p.totalPending, 0);
           
-          // Generate monthly mock trend for chart (just 1 month of current data)
-          const currentMonthName = new Date().toLocaleString('default', { month: 'short' });
-          const monthlyArr = [{ monthName: currentMonthName, totalDelivered, totalPending }];
+          const monthlyArr = Object.keys(monthDict).sort().reverse().map(k => ({
+            monthKey: k,
+            monthName: new Date(k + '-01').toLocaleString('default', { month: 'short', year: 'numeric' }),
+            delivered: monthDict[k].delivered,
+            target: monthDict[k].target,
+            pending: monthDict[k].pending
+          }));
+
+          const yearlyArr = Object.keys(yearDict).sort().reverse().map(k => ({
+            yearKey: k,
+            delivered: yearDict[k].delivered,
+            target: yearDict[k].target,
+            pending: yearDict[k].pending
+          }));
 
           setData({
              monthly: { data: monthlyArr },
+             yearly: { data: yearlyArr },
              topPending: { data: topPendingArr },
              pendingPIs: { data: pis.filter((p:any) => p.STATUS !== 'COMPLETE') },
              piSummary: { data: pis }
@@ -728,32 +818,41 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
     onLog('CSV Export', `Generated spreadsheet for ${tableData.length} active order pipeline entries.`);
   };
 
+  const [currentMonthIdx, setCurrentMonthIdx] = useState(0);
+  const currentMonthData = data?.monthly?.data?.[currentMonthIdx];
+  const currentYearData = data?.yearly?.data?.[0]; // Default to latest year
+
   const stats = [
     { 
+      label: "Customer Target Lifting", 
+      value: data?.piSummary?.data ? (data.piSummary.data.reduce((sum: number, p: any) => sum + (Number(p.QUANTITY_KG) || 0), 0)).toLocaleString() + " Kg" : "0 Kg", 
+      icon: <Calendar size={20} />, 
+      color: "bg-indigo-600",
+      trend: data?.piSummary?.data?.length > 0 ? [...new Set(data.piSummary.data.map((p: any) => p.CUSTOMER_NAME))].sort((a,b) => {
+        const sumA = data.piSummary.data.filter((p:any) => p.CUSTOMER_NAME === a).reduce((s:number, p:any) => s + (Number(p.QUANTITY_KG)||0), 0);
+        const sumB = data.piSummary.data.filter((p:any) => p.CUSTOMER_NAME === b).reduce((s:number, p:any) => s + (Number(p.QUANTITY_KG)||0), 0);
+        return sumB - sumA;
+      })[0] : "No Active Targets",
+      status: { label: "Target Set", color: "bg-indigo-100 text-indigo-700" }
+    },
+    { 
       label: "Total Delivered", 
-      value: data?.monthly?.data ? `${(data?.monthly?.data?.reduce((s: any, m: any) => s + (parseFloat(m.totalDelivered) || 0), 0) || 0).toLocaleString()} kg` : null, 
+      value: data?.monthly?.data ? `${(data?.monthly?.data?.reduce((s: any, m: any) => s + (parseFloat(m.delivered) || 0), 0) || 0).toLocaleString()} kg` : '0 kg', 
       icon: <Truck size={20} />, 
       color: "bg-accent",
-      trend: "+12.5% vs LW",
-      status: { label: "Live", color: "bg-blue-100 text-blue-700" }
+      trend: "Total Volume",
+      status: { label: "Fulfilled", color: "bg-blue-100 text-blue-700" }
     },
     { 
       label: "Total Pending", 
-      value: data?.monthly?.data ? `${(data?.monthly?.data?.reduce((s: any, m: any) => s + (parseFloat(m.totalPending) || 0), 0) || 0).toLocaleString()} kg` : null, 
+      value: data?.monthly?.data ? `${(data?.monthly?.data?.reduce((s: any, m: any) => s + (parseFloat(m.pending) || 0), 0) || 0).toLocaleString()} kg` : '0 kg', 
       icon: <AlertCircle size={20} />, 
       color: "bg-rose-500",
       trend: "Critical Focus",
       status: { label: "Attention", color: "bg-rose-100 text-rose-700" }
     },
     { 
-      label: "Active P.I.s", 
-      value: data?.pendingPIs?.data?.length || 0, 
-      icon: <FileText size={20} />, 
-      color: "bg-teal-500",
-      status: { label: "In Review", color: "bg-teal-100 text-teal-700" }
-    },
-    { 
-      label: "Customers", 
+      label: "Active Customers", 
       value: data?.piSummary?.data ? [...new Set(data.piSummary.data.map((p:any) => p?.CUSTOMER_NAME))].filter(Boolean).length : 0, 
       icon: <Users size={20} />, 
       color: "bg-primary",
@@ -785,7 +884,15 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
         {isLoading 
           ? [1, 2, 3, 4].map(i => <StatSkeleton key={i} />)
           : stats.map((stat, i) => (
-            <div key={i} className="bg-surface-card p-5 rounded-custom border border-border-main shadow-sm hover:shadow-md transition-all relative overflow-hidden group">
+            <div 
+              key={i} 
+              onClick={() => {
+                if (stat.label.includes('Deliver') || stat.label.includes('Pend')) onNavigate('lifting');
+                if (stat.label.includes('PI')) onNavigate('pi');
+                if (stat.label.includes('Customer')) onNavigate('customers');
+              }}
+              className="bg-surface-card p-5 rounded-custom border border-border-main shadow-sm hover:shadow-md transition-all relative overflow-hidden group cursor-pointer"
+            >
               <div className={cn("absolute top-0 left-0 w-1.5 h-full", stat.color)} />
               <div className="flex items-start justify-between">
                 <div className={cn("w-11 h-11 rounded-[calc(var(--radius-value)*0.5)] flex items-center justify-center text-white shadow-lg", stat.color)}>
@@ -814,6 +921,169 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
         }
       </div>
 
+      {/* Time-Series Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Month Wise Card */}
+        <div 
+          id="dashboard-card-monthly"
+          onClick={() => {
+            const currentMonthData = data?.monthly?.data?.[currentMonthIdx];
+            if (currentMonthData) {
+              // Sample drill-down data: filter total lifting by this month
+              setActivePopup({ 
+                title: `${currentMonthData.monthName} Lifting Analysis`, 
+                data: data.monthly.data.filter((m:any) => m.monthKey === currentMonthData.monthKey),
+                type: 'monthly' 
+              });
+            }
+          }}
+          className="bg-white rounded-[2rem] border border-slate-200 p-6 shadow-sm flex flex-col justify-between group overflow-hidden relative cursor-pointer hover:border-accent hover:shadow-lg transition-all"
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+            <Calendar size={120} className="rotate-12" />
+          </div>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                <Calendar size={16} />
+              </div>
+              <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em]">Monthly Lifting</h4>
+            </div>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentMonthIdx(Math.min((data?.monthly?.data?.length || 1) - 1, currentMonthIdx + 1));
+                }}
+                className="p-1 hover:bg-slate-100 rounded transition-colors text-slate-400"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentMonthIdx(Math.max(0, currentMonthIdx - 1));
+                }}
+                className="p-1 hover:bg-slate-100 rounded transition-colors text-slate-400"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+          
+          <div className="mb-4">
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Period</div>
+            <div className="text-2xl font-black text-primary tracking-tight leading-none uppercase">{currentMonthData?.monthName || "NO DATA"}</div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
+            <div>
+              <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Delivered</div>
+              <div className="text-sm font-black text-slate-900 num-font">{(currentMonthData?.delivered || 0).toLocaleString()} kg</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] font-black text-rose-500 uppercase tracking-tighter">Pending</div>
+              <div className="text-sm font-black text-slate-900 num-font">{(currentMonthData?.pending || 0).toLocaleString()} kg</div>
+            </div>
+          </div>
+          
+          <button className="mt-6 w-full py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded-xl text-[10px] font-black text-primary uppercase tracking-widest transition-all">Details View</button>
+        </div>
+
+        {/* Year Wise Card */}
+        <div 
+          id="dashboard-card-yearly"
+          onClick={() => {
+            const currentYearData = data?.yearly?.data?.[0];
+            if (currentYearData) {
+              setActivePopup({ 
+                title: `FY ${currentYearData.yearKey} Summary Report`, 
+                data: data.yearly.data,
+                type: 'yearly' 
+              });
+            }
+          }}
+          className="bg-white rounded-[2rem] border border-slate-200 p-6 shadow-sm flex flex-col justify-between group overflow-hidden relative cursor-pointer hover:border-accent hover:shadow-lg transition-all"
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+            <Activity size={120} className="-rotate-12" />
+          </div>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600">
+                <TrendingUp size={16} />
+              </div>
+              <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em]">Yearly Summary</h4>
+            </div>
+          </div>
+          
+          <div className="mb-4">
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Fiscal Year</div>
+            <div className="text-2xl font-black text-primary tracking-tight leading-none uppercase">{currentYearData?.yearKey || new Date().getFullYear()}</div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
+            <div>
+              <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Total Inward</div>
+              <div className="text-sm font-black text-slate-900 num-font">{(currentYearData?.target || 0).toLocaleString()} kg</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] font-black text-indigo-600 uppercase tracking-tighter">Completion</div>
+              <div className="text-sm font-black text-slate-900 num-font">
+                {currentYearData?.target ? Math.round((currentYearData.delivered / currentYearData.target) * 100) : 0}%
+              </div>
+            </div>
+          </div>
+          
+          <button className="mt-6 w-full py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded-xl text-[10px] font-black text-primary uppercase tracking-widest transition-all">Yearly Ledger</button>
+        </div>
+
+        {/* PI Individual Range Card */}
+        <div 
+          id="dashboard-card-pi-range"
+          onClick={() => {
+            setActivePopup({ 
+              title: `Proforma Invoice Status Matrix`, 
+              data: data?.piSummary?.data || [],
+              type: 'pi' 
+            });
+          }}
+          className="bg-white rounded-[2rem] border border-slate-200 p-6 shadow-sm flex flex-col justify-between group overflow-hidden relative cursor-pointer hover:border-accent hover:shadow-lg transition-all"
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+            <FileText size={120} />
+          </div>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+                <FileText size={16} />
+              </div>
+              <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em]">PI Status Range</h4>
+            </div>
+          </div>
+          
+          <div className="space-y-4">
+            {['PENDING', 'COMPLETE'].map(status => {
+                const count = data?.piSummary?.data?.filter((p:any) => p.STATUS === status).length || 0;
+                const total = data?.piSummary?.data?.length || 1;
+                return (
+                    <div key={status} className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                            <span className={status === 'COMPLETE' ? 'text-teal-600' : 'text-amber-500'}>{status}</span>
+                            <span className="text-slate-400">{count} Units</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className={cn("h-full rounded-full transition-all duration-1000", status === 'COMPLETE' ? 'bg-teal-500' : 'bg-amber-400')} style={{ width: `${(count/total)*100}%` }} />
+                        </div>
+                    </div>
+                )
+            })}
+          </div>
+          
+          <button className="mt-6 w-full py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-100 rounded-xl text-[10px] font-black text-amber-600 uppercase tracking-widest transition-all">Range Analysis</button>
+        </div>
+      </div>
+
       {/* Charts Row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Trend Bar Chart */}
@@ -840,14 +1110,14 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
                     datasets: [
                       { 
                         label: 'Delivered', 
-                        data: [...data.monthly.data].reverse().map((m: any) => m.totalDelivered),
+                        data: [...data.monthly.data].reverse().map((m: any) => m.delivered),
                         backgroundColor: 'rgba(20, 184, 166, 0.9)',
                         borderRadius: 6,
                         maxBarThickness: 12
                       },
                       { 
                         label: 'Pending', 
-                        data: [...data.monthly.data].reverse().map((m: any) => m.totalPending),
+                        data: [...data.monthly.data].reverse().map((m: any) => m.pending),
                         backgroundColor: 'rgba(244, 162, 0, 0.3)',
                         borderRadius: 6,
                         maxBarThickness: 12
@@ -936,8 +1206,8 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
           <div className="flex-1 overflow-y-auto max-h-[300px] pr-2">
              {isLoading ? <ListSkeleton /> : (
                <div className="space-y-4">
-                 {data?.topPending?.data?.map((party: any, i: number) => (
-                    <div key={i} className="flex flex-col gap-2 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-accent/20 transition-all group">
+                 {data?.topPending?.data?.slice(0, 10).map((party: any, i: number) => (
+                    <div key={i} id={`top-pending-party-${i}`} className="flex flex-col gap-2 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-accent/20 transition-all group">
                       <div className="flex flex-col gap-1 mb-1">
                         <span className="text-xs font-black text-accent uppercase tracking-widest leading-relaxed">{party.party}</span>
                       </div>
@@ -971,6 +1241,109 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
           </div>
         </div>
       </div>
+
+      {/* Dashboard Drill-down Modal */}
+      <AnimatePresence>
+        {activePopup && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-10">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActivePopup(null)}
+              className="absolute inset-0 bg-primary/40 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-5xl max-h-[85vh] rounded-[2.5rem] shadow-2xl relative z-10 overflow-hidden flex flex-col"
+            >
+              <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div>
+                   <h3 className="text-2xl font-black text-primary uppercase tracking-tight">{activePopup.title}</h3>
+                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Operational Drill-down Analytics</p>
+                </div>
+                <div className="flex items-center gap-3">
+                   <button 
+                     onClick={() => exportDashboardData(activePopup.data, activePopup.type, 'csv')}
+                     className="flex items-center gap-2 px-4 py-2.5 bg-accent text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-accent/20 hover:scale-105 transition-all"
+                   >
+                     <Download size={14} /> CSV
+                   </button>
+                   <button 
+                     onClick={() => exportDashboardData(activePopup.data, activePopup.type, 'pdf')}
+                     className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 transition-all"
+                   >
+                     <FileText size={14} /> PDF
+                   </button>
+                   <button 
+                     onClick={() => setActivePopup(null)}
+                     className="p-2 text-slate-300 hover:text-slate-600 transition-colors ml-2"
+                   >
+                     <X size={24} />
+                   </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-auto p-8">
+                 {activePopup.type === 'pi' ? (
+                   <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100">
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">PI NO</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Quality</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Target (kg)</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-bold text-xs text-slate-600">
+                         {activePopup.data.map((item: any, idx: number) => (
+                           <tr key={idx} className="hover:bg-slate-50/50">
+                             <td className="px-4 py-3 text-primary font-black">{item.PI_NO}</td>
+                             <td className="px-4 py-3 uppercase">{item.CUSTOMER_NAME}</td>
+                             <td className="px-4 py-3">{item.PRODUCT_QUALITY}</td>
+                             <td className="px-4 py-3 text-right">{item.QUANTITY_KG?.toLocaleString()}</td>
+                             <td className="px-4 py-3 text-center">
+                               <span className={cn(
+                                 "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter",
+                                 item.STATUS === 'COMPLETE' ? "bg-teal-100 text-teal-700" : "bg-blue-100 text-blue-700"
+                               )}>
+                                 {item.STATUS}
+                               </span>
+                             </td>
+                           </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                 ) : (
+                   <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100">
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Period / Data</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Delivered (kg)</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Target (kg)</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Pending (kg)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-bold text-xs text-slate-600">
+                         {activePopup.data.map((item: any, idx: number) => (
+                           <tr key={idx} className="hover:bg-slate-50/50">
+                             <td className="px-4 py-3 text-primary font-black uppercase">{item.monthName || item.yearKey || item.party}</td>
+                             <td className="px-4 py-3 text-right text-teal-600">{(item.delivered || item.totalDelivered || 0).toLocaleString()}</td>
+                             <td className="px-4 py-3 text-right">{(item.target || item.totalTarget || 0).toLocaleString()}</td>
+                             <td className="px-4 py-3 text-right text-rose-500">{(item.pending || item.totalPending || 0).toLocaleString()}</td>
+                           </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Orders Table */}
       <div className="bg-white rounded-custom border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1034,6 +1407,7 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
                 <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Account Name</th>
                 <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest">Material</th>
                 <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Target</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Balance</th>
                 <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Progress</th>
                 <th className="px-6 py-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
               </tr>
@@ -1070,6 +1444,9 @@ function Dashboard({ user, onNotify, onLog }: { user: User | null, onNotify: (t:
                       <td className="px-6 py-5 text-sm text-slate-500">{pi.PRODUCT_QUALITY}</td>
                       <td className="px-6 py-5 text-right num-font font-black text-slate-900 border-x border-slate-50">
                         {pi.QUANTITY_KG.toLocaleString()} kg
+                      </td>
+                      <td className="px-6 py-5 text-right num-font font-black text-rose-500 border-x border-slate-50">
+                        {Math.max(0, (pi.QUANTITY_KG || 0) - (pi.totalDelivered || 0)).toLocaleString()} kg
                       </td>
                       <td className="px-6 py-5 text-right">
                         <div className="flex flex-col items-end gap-1.5">

@@ -58,9 +58,10 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
          const lifts = liftRes.data || [];
          const map: Record<string, { assigned: number, delivered: number }> = {};
          lifts.forEach((l: any) => {
-            if (!map[l.PI_NO]) map[l.PI_NO] = { assigned: 0, delivered: 0 };
-            map[l.PI_NO].assigned += (Number(l.TARGET_KG) || 0);
-            map[l.PI_NO].delivered += (Number(l.DELIVERED_KG) || 0);
+            const piNo = String(l.PI_NO || '').trim();
+            if (!map[piNo]) map[piNo] = { assigned: 0, delivered: 0 };
+            map[piNo].assigned += (Number(l.TARGET_KG) || 0);
+            map[piNo].delivered += (Number(l.DELIVERED_KG) || 0);
          });
          setLiftingMap(map);
       }
@@ -197,22 +198,29 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
             ))
         ) : paginatedData.length > 0 ? (
             paginatedData.map(pi => {
-                const totalDelivered = liftingMap[pi.PI_NO]?.delivered || 0;
+                const piNo = String(pi.PI_NO || '').trim();
+                const totalDelivered = liftingMap[piNo]?.delivered || 0;
                 const progress = (totalDelivered / (pi.QUANTITY_KG || 1)) * 100;
+                const remaining = (pi.QUANTITY_KG || 0) - totalDelivered;
+                const isPracticallyComplete = remaining < 100 && remaining > 0;
+                
                 return (
-                    <div key={pi.PI_NO} className="bg-surface-card rounded-custom border border-border-main p-6 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between border-l-4 border-l-transparent hover:border-l-accent">
+                    <div key={pi.PI_NO} className="bg-surface-card rounded-custom border border-border-main p-6 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between border-l-4 border-l-primary/10 hover:border-l-accent">
                         <div>
                             <div className="flex items-start justify-between mb-4">
                                 <div>
                                     <h4 className="text-base font-black text-primary uppercase tracking-tight">{pi.PI_NO}</h4>
                                     <span className="text-xs font-bold text-text-dim uppercase tracking-widest">{formatDate(pi.INVOICE_DATE)}</span>
                                 </div>
-                                <span className={cn(
-                                    "px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-widest",
-                                    pi.STATUS === 'COMPLETE' ? "bg-teal-100 text-teal-700" : "bg-blue-100 text-blue-700"
-                                )}>
-                                    {pi.STATUS}
-                                </span>
+                                <div className="flex flex-col items-end gap-1">
+                                    <span className={cn(
+                                        "px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-widest",
+                                        pi.STATUS === 'COMPLETE' || isPracticallyComplete ? "bg-teal-100 text-teal-700" : "bg-blue-100 text-blue-700"
+                                    )}>
+                                        {isPracticallyComplete ? 'NEAR COMPLETE' : pi.STATUS}
+                                    </span>
+                                    {isPracticallyComplete && <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Under 100kg Rule</div>}
+                                </div>
                             </div>
 
                             <div className="mb-6">
@@ -230,22 +238,22 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                         <div className="space-y-4">
                             <div className="grid grid-cols-3 gap-2 bg-surface-muted p-3 rounded-2xl">
                                 <div>
-                                    <div className="text-[10px] font-black text-text-dim uppercase tracking-tighter">Gross Qty</div>
+                                    <div className="text-[10px] font-black text-text-dim uppercase tracking-tighter">PI Gross</div>
                                     <div className="text-sm font-black text-primary">{pi.QUANTITY_KG?.toLocaleString()}kg</div>
                                     <div className="text-[9px] font-bold text-text-dim mt-0.5">₹{pi.NET_AMOUNT?.toLocaleString()}</div>
                                 </div>
                                 <div className="text-center">
-                                    <div className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter">Target Allocated</div>
+                                    <div className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter">Lifting Target</div>
                                     <div className="text-sm font-black text-indigo-600">
-                                       {(liftingMap[pi.PI_NO]?.assigned || 0).toLocaleString()}kg
+                                       {(liftingMap[piNo]?.assigned || 0).toLocaleString()}kg
                                     </div>
                                     <div className="text-[9px] font-bold text-indigo-400 mt-0.5">
-                                       Left: {Math.max(0, (pi.QUANTITY_KG || 0) - (liftingMap[pi.PI_NO]?.assigned || 0)).toLocaleString()}kg
+                                       Left: {Math.max(0, (pi.QUANTITY_KG || 0) - (liftingMap[piNo]?.assigned || 0)).toLocaleString()}kg
                                     </div>
                                 </div>
                                 <div className="text-right">
                                     <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Delivered</div>
-                                    <div className="text-sm font-black text-teal-600">{(liftingMap[pi.PI_NO]?.delivered || 0).toLocaleString()}kg</div>
+                                    <div className="text-sm font-black text-teal-600">{(liftingMap[piNo]?.delivered || 0).toLocaleString()}kg</div>
                                 </div>
                             </div>
 
@@ -266,9 +274,16 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                             </div>
 
                             <div className="flex items-center justify-between pt-4 border-t border-border-main">
-                                <span className="text-[11px] font-bold text-text-dim/50 uppercase truncate max-w-[120px]">
-                                    Sig: {pi.AUTHORIZED_SIGNATORY}
-                                </span>
+                                <div className="flex flex-col">
+                                  <span className="text-[11px] font-bold text-text-dim/50 uppercase truncate max-w-[120px]">
+                                      Sig: {pi.AUTHORIZED_SIGNATORY}
+                                  </span>
+                                  {pi.DELIVERY_PIN && (
+                                    <span className="text-[10px] font-black text-accent uppercase tracking-tighter">
+                                      PIN: {pi.DELIVERY_PIN}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button 
                                         onClick={() => { setCurrentEntry(pi); setIsModalOpen(true); }}
@@ -389,6 +404,15 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
                             value={currentPI?.AUTHORIZED_SIGNATORY || ''}
                             onChange={e => setCurrentEntry({ ...currentPI, AUTHORIZED_SIGNATORY: e.target.value })}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Delivery PIN</label>
+                        <input 
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
+                            value={currentPI?.DELIVERY_PIN || ''}
+                            onChange={e => setCurrentEntry({ ...currentPI, DELIVERY_PIN: e.target.value })}
+                            placeholder="PIN Code"
                         />
                     </div>
                 </div>
