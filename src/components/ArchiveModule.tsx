@@ -32,8 +32,8 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
     setIsLoading(true);
     try {
       const [piRes, liftRes] = await Promise.all([
-        apiCall('getPIData'),
-        apiCall('getLiftingData')
+        apiCall('getArchivePI'),
+        apiCall('getArchiveLifting')
       ]);
       
       if (piRes.success && liftRes.success) {
@@ -41,12 +41,8 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
         const lifts = liftRes.data || [];
         
         // Match PI with its lifting entries
-        const matchedPIs = pis.filter((pi: PI) => pi.STATUS === 'COMPLETE').map((pi: PI) => {
+        const matchedPIs = pis.map((pi: PI) => {
           const piLifts = lifts.filter((l: any) => l.PI_NO === pi.PI_NO);
-          
-          // Determine if it's fully complete or partial
-          // If any lifter has 0 < balance <= 100, it's considered partial completion if the main PI is marked complete
-          // Actually, let's look at the lifters themselves.
           const isFull = piLifts.every((l: any) => (Number(l.TARGET_KG) - Number(l.DELIVERED_KG)) <= 0);
           
           return {
@@ -91,6 +87,17 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex justify-end mb-2">
+        <button 
+          onClick={loadData}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg"
+          disabled={isLoading}
+        >
+          <History size={14} className={cn(isLoading && "animate-spin")} />
+          {isLoading ? 'Syncing...' : 'Refresh Archive'}
+        </button>
+      </div>
+
       {/* Stats and Tabs */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <button 

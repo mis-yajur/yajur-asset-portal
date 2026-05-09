@@ -16,7 +16,8 @@ import {
   CreditCard,
   ChevronLeft,
   ChevronRight,
-  IndianRupee
+  IndianRupee,
+  Archive
 } from 'lucide-react';
 import { apiCall } from '../services/api';
 import { cn, formatDate } from '../lib/utils';
@@ -99,6 +100,26 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter]);
+
+  const handleArchive = async (piNo: string) => {
+    if (!window.confirm(`Are you sure you want to move PI ${piNo} and all its lifting entries to the archive? This will remove them from the active list.`)) return;
+    
+    setIsLoading(true);
+    try {
+      const res = await apiCall('archivePI', { PI_NO: piNo });
+      if (res.success) {
+        onNotify('Archived', `PI ${piNo} moved to Resolution Matrix`, 'success');
+        onLog('Archive PI', `PI: ${piNo}`);
+        await loadData();
+      } else {
+        onNotify('Error', res.error || 'Archiving failed', 'error');
+      }
+    } catch (error) {
+      onNotify('Error', 'Archive request failed', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleDelete = async (id: string) => {
     if (!window.confirm(`Delete PI Record ${id}?`)) return;
@@ -331,6 +352,15 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                   )}
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {(pi.STATUS === 'COMPLETE' || isPracticallyComplete) && (
+                                        <button 
+                                            onClick={() => handleArchive(pi.PI_NO)}
+                                            className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                                            title="Move to Archive"
+                                        >
+                                            <Archive size={12} />
+                                        </button>
+                                    )}
                                     <button 
                                         onClick={() => { setCurrentEntry(pi); setIsModalOpen(true); }}
                                         className="p-2 text-slate-400 hover:text-accent hover:bg-accent/5 rounded-lg transition-all"

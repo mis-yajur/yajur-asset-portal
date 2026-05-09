@@ -24,6 +24,8 @@ function doPost(e) {
       case 'getCustomers': result = getData('customer_master'); break;
       case 'getProducts': result = getData('product_master'); break;
       case 'getLedger': result = getData('ledger'); break;
+      case 'getArchivePI': result = getData('archive_pi'); break;
+      case 'getArchiveLifting': result = getData('archive_lifting'); break;
       
       case 'addLifting': result = addRow('lifting_data', params); break;
       case 'updateLifting': result = updateRow('lifting_data', 'LIFTING_ID', params); break;
@@ -32,6 +34,8 @@ function doPost(e) {
       case 'addPI': result = addRow('pi_data', params); break;
       case 'updatePI': result = updateRow('pi_data', 'PI_NO', params); break;
       case 'deletePI': result = deleteRow('pi_data', 'PI_NO', params.PI_NO); break;
+      
+      case 'archivePI': result = archivePI(params.PI_NO); break;
       
       case 'addCustomer': result = addRow('customer_master', params); break;
       case 'bulkUploadCustomers': result = bulkUpload('customer_master', params.customers); break;
@@ -69,7 +73,9 @@ function initializeSheets() {
     'pi_data': ["PI_NO", "INVOICE_DATE", "SELLER_NAME", "SELLER_GSTIN", "SELLER_CIN", "CERT_NO", "CUSTOMER_NAME", "CUSTOMER_GST", "DELIVERY_ADDR", "DELIVERY_STATE", "DELIVERY_PIN", "PRODUCT_QUALITY", "UNIT_COUNT", "QUANTITY_KG", "RATE_PER_UNIT", "ITEM_TOTAL", "NET_AMOUNT", "AUTHORIZED_SIGNATORY", "STATUS", "CREATED_AT"],
     'customer_master': ["SL", "PARTY_CODE", "PARTY_NAME", "ADDRESS1", "ADDRESS2", "ADDRESS3", "STATE_CODE", "GSTIN", "PAN_NO", "MOBILE_NO", "EMAIL_ID", "BANK_CODE", "IFSC_BRANCH", "IFSC_CODE", "ACC_NO"],
     'product_master': ["SL", "QLTY_CODE", "QLTY_NAME", "HSN_CODE", "TYPE"],
-    'ledger': ["ID", "DATE", "PI_NO", "ACCOUNT", "TYPE", "QTY", "RATE", "DELIVERED_AMT", "PRICE_BALANCE", "QTY_BALANCE", "REMARKS"]
+    'ledger': ["ID", "DATE", "PI_NO", "ACCOUNT", "TYPE", "QTY", "RATE", "DELIVERED_AMT", "PRICE_BALANCE", "QTY_BALANCE", "REMARKS"],
+    'archive_pi': ["PI_NO", "INVOICE_DATE", "SELLER_NAME", "SELLER_GSTIN", "SELLER_CIN", "CERT_NO", "CUSTOMER_NAME", "CUSTOMER_GST", "DELIVERY_ADDR", "DELIVERY_STATE", "DELIVERY_PIN", "PRODUCT_QUALITY", "UNIT_COUNT", "QUANTITY_KG", "RATE_PER_UNIT", "ITEM_TOTAL", "NET_AMOUNT", "AUTHORIZED_SIGNATORY", "STATUS", "CREATED_AT", "ARCHIVED_AT"],
+    'archive_lifting': ["LIFTING_ID", "ACCOUNT", "CONTACT", "PI_NO", "TARGET_KG", "DELIVERED_KG", "REMAINING_KG", "COMPLETION", "FREQUENCY", "STATUS", "LAST_DELIVERY_DATE", "LAST_QTY", "HISTORY", "NOTES", "ARCHIVED_AT"]
   };
 
   for (let sheetName in sheetsConfig) {
@@ -222,4 +228,68 @@ function syncLedger(rows) {
     sheet.getRange(2, 1, dataToSync.length, headers.length).setValues(dataToSync);
   }
   return { success: true, count: rows ? rows.length : 0 };
+}
+
+function archivePI(piNo) {
+  if (!piNo) throw new Error('PI_NO is required for archiving');
+  
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const piSheet = ss.getSheetByName('pi_data');
+  const liftSheet = ss.getSheetByName('lifting_data');
+  const arcPiSheet = ss.getSheetByName('archive_pi');
+  const arcLiftSheet = ss.getSheetByName('archive_lifting');
+
+  if (!arcPiSheet || !arcLiftSheet) initializeSheets();
+
+  const piDataValues = piSheet.getDataRange().getValues();
+  const piHeaders = piDataValues[0];
+  const piNoIdx = piHeaders.indexOf('PI_NO');
+  const archiveTime = new Date().toISOString();
+
+  let piRowToArchive = null;
+  let piRowIndex = -1;
+
+  for (let i = 1; i < piDataValues.length; i++) {
+    if (String(piDataValues[i][piNoIdx]) === String(piNo)) {
+      piRowToArchive = piDataValues[i];
+      piRowIndex = i + 1;
+      break;
+    }
+  }
+
+  if (!piRowToArchive) throw new Error('PI not found: ' + piNo);
+
+  // 1. Copy PI to Archive
+  const arcPiHeaders = arcPiSheet.getRange(1, 1, 1, arcPiSheet.getLastColumn()).getValues()[0];
+  const newArcPiRow = arcPiHeaders.map(h => {
+    if (h === 'ARCHIVED_AT') return archiveTime;
+    const idx = piHeaders.indexOf(h);
+    return idx !== -1 ? piRowToArchive[idx] : "";
+  });
+  arcPiSheet.appendRow(newArcPiRow);
+
+  // 2. Archive associated Lifting data
+  const liftDataValues = liftSheet.getDataRange().getValues();
+  const liftHeaders = liftDataValues[0];
+  const liftPiIdx = liftHeaders.indexOf('PI_NO');
+  const arcLiftHeaders = arcLiftSheet.getRange(1, 1, 1, arcLiftSheet.getLastColumn()).getValues()[0];
+
+  const rowsToRemove = [];
+  for (let i = 1; i < liftDataValues.length; i++) {
+    if (String(liftDataValues[i][liftPiIdx]) === String(piNo)) {
+      const arcLiftRow = arcLiftHeaders.map(h => {
+        if (h === 'ARCHIVED_AT') return archiveTime;
+        const idx = liftHeaders.indexOf(h);
+        return idx !== -1 ? liftDataValues[i][idx] : "";
+      });
+      arcLiftSheet.appendRow(arcLiftRow);
+      rowsToRemove.push(i + 1);
+    }
+  }
+
+  // 3. Delete from original sheets (Reverse order)
+  rowsToRemove.sort((a, b) => b - a).forEach(row => liftSheet.deleteRow(row));
+  piSheet.deleteRow(piRowIndex);
+
+  return { success: true, piNo: piNo };
 }
