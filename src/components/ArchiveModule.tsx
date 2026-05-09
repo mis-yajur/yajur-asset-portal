@@ -211,10 +211,6 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
                           <Package size={12} className="text-slate-400" />
                           <span className="text-[10px] font-bold text-slate-600 uppercase">{pi.PRODUCT_QUALITY}</span>
                        </div>
-                       <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded-lg">
-                          <span className="text-[10px] font-black text-slate-400 uppercase">Operation:</span>
-                          <span className="text-[10px] font-bold text-slate-600 uppercase"></span>
-                       </div>
                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                           Quantum: <span className="text-slate-900 font-black">{pi.QUANTITY_KG.toLocaleString()} KG</span>
                        </div>
