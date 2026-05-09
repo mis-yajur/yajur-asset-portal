@@ -211,28 +211,38 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
   }, [ledgerEntries, activeTab, search]);
 
   const syncToSheet = async () => {
-    // We will just export the stock entries for the legacy sync
     try {
-      const rows = ledgerEntries.stockEntries.map(e => ({
-        ID: Math.random().toString(36).substr(2, 9),
-        DATE: new Date(e.date).toISOString(),
-        PI_NO: e.piNo,
-        ACCOUNT: e.account,
-        TYPE: e.type,
-        DEBIT_TARGET: e.qtyIn || 0,
-        CREDIT_DELIVERED: e.qtyOut || 0,
-        BALANCE: 0, // In backend the format is standard
-        REMARKS: e.remarks || ''
-      }));
-      onNotify('Info', 'Syncing ledger to Google Sheets...', 'info');
+      // Sort entries by date to ensure balance is calculated correctly
+      const sorted = [...ledgerEntries.stockEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      let runningBalance = 0;
+      const rows = sorted.map(e => {
+        const qtyIn = Number(e.qtyIn) || 0;
+        const qtyOut = Number(e.qtyOut) || 0;
+        runningBalance += (qtyIn - qtyOut);
+        
+        return {
+          ID: Math.random().toString(36).substr(2, 9).toUpperCase(),
+          DATE: new Date(e.date).toLocaleString(),
+          PI_NO: e.piNo || '',
+          ACCOUNT: e.account || '',
+          TYPE: e.type || '',
+          DEBIT_TARGET: qtyIn,
+          CREDIT_DELIVERED: qtyOut,
+          BALANCE: runningBalance,
+          REMARKS: e.remarks || ''
+        };
+      });
+
+      onNotify('Info', 'Initiating connection to mainframe...', 'info');
       const res = await apiCall('syncLedger', { rows });
       if (res.success) {
-        onNotify('Success', 'Ledger successfully saved to Google Sheets!', 'success');
+        onNotify('Success', 'Ledger Sheet Synchronized Successfully', 'success');
       } else {
-        onNotify('Error', 'Failed to sync: ' + res.error, 'error');
+        onNotify('Error', 'Sync Failure: ' + res.error, 'error');
       }
     } catch (err) {
-      onNotify('Error', 'Failed to communicate with the server', 'error');
+      onNotify('Error', 'Remote System Communication Error', 'error');
     }
   };
 
