@@ -49,6 +49,7 @@ function doPost(e) {
 
       case 'syncLedger': result = syncLedger(params.rows); break;
       case 'getReports': result = getReports(params.startDate, params.endDate); break;
+      case 'restoreArchive': result = restoreArchive(); break;
       
       default:
         throw new Error('Action not recognized: ' + action);
@@ -320,16 +321,76 @@ function archivePI(piNo) {
   }
   console.log('Lifting entries archived: ' + rowsToRemove.length);
 
-  // 3. Delete from original sheets (Reverse order to maintain indices)
-  if (rowsToRemove.length > 0) {
-    rowsToRemove.sort((a, b) => b - a).forEach(row => {
-      liftSheet.deleteRow(row);
-    });
+  // 3. Mark as COMPLETE in main sheets instead of deleting
+  try {
+    const piStatusIdx = piHeaders.indexOf('STATUS');
+    if (piStatusIdx !== -1) {
+      piSheet.getRange(piRowIndex, piStatusIdx + 1).setValue('COMPLETE');
+    }
+    
+    if (rowsToRemove.length > 0) {
+      const liftStatusIdx = liftHeaders.indexOf('STATUS');
+      if (liftStatusIdx !== -1) {
+        rowsToRemove.forEach(row => {
+          liftSheet.getRange(row, liftStatusIdx + 1).setValue('COMPLETE');
+        });
+      }
+    }
+    console.log('Main records updated to COMPLETE status');
+  } catch (e) {
+    console.warn('Failed to update status in main sheet, but archive copy is created: ' + e.message);
   }
-  piSheet.deleteRow(piRowIndex);
-  console.log('Original rows deleted');
 
   return { success: true, piNo: piNo, archivedAt: archiveTime, liftCount: rowsToRemove.length };
+}
+
+function restoreArchive() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = [
+    { main: 'pi_data', arc: 'archive_pi', key: 'PI_NO' },
+    { main: 'lifting_data', arc: 'archive_lifting', key: 'LIFTING_ID' }
+  ];
+  
+  let totalRestored = 0;
+  
+  sheets.forEach(conf => {
+    const mainSheet = ss.getSheetByName(conf.main);
+    const arcSheet = ss.getSheetByName(conf.arc);
+    if (!mainSheet || !arcSheet) return;
+    
+    const mainData = mainSheet.getDataRange().getValues();
+    const arcData = arcSheet.getDataRange().getValues();
+    if (arcData.length <= 1) return;
+    
+    const mainHeaders = mainData[0];
+    const arcHeaders = arcData[0];
+    const mainKeyIdx = mainHeaders.indexOf(conf.key);
+    const arcKeyIdx = arcHeaders.indexOf(conf.key);
+    
+    if (mainKeyIdx === -1 || arcKeyIdx === -1) return;
+    
+    const mainIds = new Set(mainData.slice(1).map(r => String(r[mainKeyIdx]).trim()));
+    
+    const toRestore = [];
+    for (let i = 1; i < arcData.length; i++) {
+      const id = String(arcData[i][arcKeyIdx]).trim();
+      if (!mainIds.has(id)) {
+        // Map archive row to main headers
+        const newRow = mainHeaders.map(h => {
+          const idx = arcHeaders.indexOf(h);
+          return idx !== -1 ? arcData[i][idx] : "";
+        });
+        toRestore.push(newRow);
+      }
+    }
+    
+    if (toRestore.length > 0) {
+      mainSheet.getRange(mainSheet.getLastRow() + 1, 1, toRestore.length, mainHeaders.length).setValues(toRestore);
+      totalRestored += toRestore.length;
+    }
+  });
+  
+  return { success: true, count: totalRestored };
 }
 
 function getReports(startDate, endDate) {
@@ -340,12 +401,15 @@ function getReports(startDate, endDate) {
     if (!dateStr) return null;
     if (dateStr instanceof Date) return dateStr;
     
-    // Handle DD/MM/YYYY
-    if (typeof dateStr === 'string' && dateStr.includes('/')) {
-      const parts = dateStr.split('/');
-      if (parts.length === 3) {
-        // Assume DD/MM/YYYY
-        return new Date(parts[2], parts[1] - 1, parts[0]);
+    // Handle DD/MM/YYYY or DD-MM-YYYY
+    if (typeof dateStr === 'string') {
+      const separator = dateStr.includes('/') ? '/' : (dateStr.includes('-') && dateStr.indexOf('-') < 4 ? '-' : null);
+      if (separator) {
+        const parts = dateStr.split(separator);
+        if (parts.length === 3) {
+          // Assume DD/MM/YYYY or DD-MM-YYYY
+          return new Date(parts[2], parts[1] - 1, parts[0]);
+        }
       }
     }
     
@@ -362,8 +426,18 @@ function getReports(startDate, endDate) {
   const arcPis = getData('archive_pi');
   const arcLifts = getData('archive_lifting');
 
-  const allPis = [...activePis, ...arcPis];
-  const allLifts = [...activeLifts, ...arcLifts];
+  // Deduplicate records to avoid doubling stats if data exists in both main and archive
+  const piMap = new Map();
+  [...activePis, ...arcPis].forEach(p => {
+    if (p.PI_NO) piMap.set(String(p.PI_NO).trim().toUpperCase(), p);
+  });
+  const allPis = Array.from(piMap.values());
+
+  const liftMap = new Map();
+  [...activeLifts, ...arcLifts].forEach(l => {
+    if (l.LIFTING_ID) liftMap.set(String(l.LIFTING_ID).trim().toUpperCase(), l);
+  });
+  const allLifts = Array.from(liftMap.values());
 
   // Filtering lifts by last delivery date or history dates
   const filteredLifts = allLifts.filter(l => {

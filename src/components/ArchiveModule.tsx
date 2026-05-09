@@ -73,6 +73,21 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
     loadData();
   }, []);
 
+  const synchronizeArchive = async () => {
+    setIsLoading(true);
+    try {
+      const res = await apiCall('restoreArchive');
+      if (res.success) {
+        onNotify('Success', `Restored ${res.data.count} entries to main sheets`, 'success');
+        loadData();
+      }
+    } catch (e) {
+      onNotify('Error', 'Archive synchronization failed', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const filteredLifts = useMemo(() => {
     return liftingData.filter(l => {
       const searchStr = `${l.LIFTING_ID} ${l.ACCOUNT} ${l.PI_NO}`.toLowerCase();
@@ -81,7 +96,7 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
   }, [liftingData, searchTerm]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       {/* List Container */}
       <div className="bg-surface-card rounded-[2.5rem] border border-border-main p-8 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -96,6 +111,13 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
           </div>
 
           <div className="flex items-center gap-3">
+            <button 
+              onClick={synchronizeArchive}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all border border-indigo-100 mr-2"
+              title="Restore archived data back to main sheets"
+            >
+              <Activity size={14} /> Synchronize Data
+            </button>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input 
