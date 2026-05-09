@@ -89,18 +89,17 @@ function initializeSheets() {
         sheet.appendRow(["admin", "admin123", "admin", "System Administrator"]);
       }
       if (sheetName === 'customer_master') {
-        sheet.appendRow(["1", "CUS001", "Ghosh Traders", "Kolkata", "", "", "19", "19AAECS2882B3ZB", "PAN123", "9876543210", "ghosh@test.com", "SBI", "Main", "SBIN00123", "123456789"]);
-        sheet.appendRow(["2", "CUS002", "Dutta Enterprise", "Howrah", "", "", "19", "19BBECS2882B3ZB", "PAN456", "9876543211", "dutta@test.com", "HDFC", "Howrah", "HDFC00123", "987654321"]);
-      }
-      if (sheetName === 'product_master') {
-        sheet.appendRow(["1", "YY-30S", "30s Combed Yarn", "5205", "Yarn"]);
-        sheet.appendRow(["2", "PF-150D", "150 Denier Polyester", "5402", "Fibre"]);
+        sheet.appendRow([1, "CUS001", "Ghosh Traders", "Kolkata", "", "", "19", "19AAECS2882B3ZB", "PAN123", "9876543210", "ghosh@test.com", "SBI", "Main", "SBIN00123", "123456789"]);
       }
       if (sheetName === 'pi_data') {
-        sheet.appendRow(["PI-001", "2024-05-01", "Yajur Lifting", "19AAECS2882B3ZB", "U17100WB1980PLC032918", "BVFR14492922", "Ghosh Traders", "19AAECS2882B3ZB", "Kolkata", "West Bengal", "700001", "30s Combed Yarn", "100", "5000", "250", "1250000", "1250000", "Authorized Admin", "RUNNING", new Date().toISOString()]);
+        sheet.appendRow(["PI-001", "2024-05-01", "Yajur Lifting", "19AAECS2882B3ZB", "U17100WB1980PLC032918", "BVFR14492922", "Ghosh Traders", "19AAECS2882B3ZB", "Kolkata", "West Bengal", "700001", "30s Combed Yarn", 100, 5000, 250, 1250000, 1250000, "Authorized Admin", "RUNNING", new Date().toISOString()]);
       }
       if (sheetName === 'lifting_data') {
-        sheet.appendRow(["LIFT-1", "Ghosh Traders", "Mr. Ghosh", "PI-001", "5000", "1500", "3500", "30", "30", "RUNNING", "2024-05-05", "400", "[]", ""]);
+        sheet.appendRow(["LIFT-1", "Ghosh Traders", "Mr. Ghosh", "PI-001", 5000, 1500, 3500, 30, 30, "RUNNING", "2024-05-05", 400, "[]", ""]);
+      }
+      if (sheetName === 'ledger') {
+        sheet.appendRow(["LGR001", "2024-05-01", "PI-001", "Ghosh Traders", "PI Target Lifting", 5000, 250, 0, 1250000, 5000, "Opening Stock Target"]);
+        sheet.appendRow(["LGR002", "2024-05-05", "PI-001", "Ghosh Traders", "Delivery (Sales)", 1500, 250, 375000, 875000, 3500, "First Dispatch"]);
       }
     }
   }

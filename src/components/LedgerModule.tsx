@@ -20,22 +20,27 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     async function fetchData() {
       setIsLoading(true);
       try {
-        const [piRes, liftRes] = await Promise.all([
+        const [piRes, liftRes, arcPiRes, arcLiftRes] = await Promise.all([
           apiCall('getPIData'),
-          apiCall('getLiftingData')
+          apiCall('getLiftingData'),
+          apiCall('getArchivePI'),
+          apiCall('getArchiveLifting')
         ]);
-        if(piRes.success) setPiData(piRes.data || []);
-        if(liftRes.success) {
-          const parsedData = (liftRes.data || []).map((item: any) => {
-            let historyStr = item.HISTORY || item.history || item.History || item.DELIVERY_HISTORY || item.NOTES;
-            let history = historyStr;
-            if (typeof history === 'string') {
-              try { history = JSON.parse(historyStr); } catch (e) { history = []; }
-            }
-            return { ...item, HISTORY: Array.isArray(history) ? history : [] };
-          });
-          setLiftingData(parsedData);
-        }
+        
+        const allPis = [...(piRes.data || []), ...(arcPiRes.data || [])];
+        const allLifts = [...(liftRes.data || []), ...(arcLiftRes.data || [])];
+
+        setPiData(allPis);
+        
+        const parsedData = allLifts.map((item: any) => {
+          let historyStr = item.HISTORY || item.history || item.History || item.DELIVERY_HISTORY || item.NOTES;
+          let history = historyStr;
+          if (typeof history === 'string') {
+            try { history = JSON.parse(historyStr); } catch (e) { history = []; }
+          }
+          return { ...item, HISTORY: Array.isArray(history) ? history : [] };
+        });
+        setLiftingData(parsedData);
       } catch (err) {
         onNotify('Error', 'Failed to fetch ledger data', 'error');
       } finally {
