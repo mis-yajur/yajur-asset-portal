@@ -67,8 +67,17 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
               history = []; 
             }
           }
+          
+          const target = Number(item.TARGET_KG) || 0;
+          const delivered = Number(item.DELIVERED_KG) || 0;
+          const remaining = item.REMAINING_KG !== undefined ? Number(item.REMAINING_KG) : (target - delivered);
+
           return { 
             ...item, 
+            TARGET_KG: target,
+            DELIVERED_KG: delivered,
+            REMAINING_KG: Math.max(0, remaining),
+            FREQUENCY: Number(item.FREQUENCY) || 30,
             HISTORY: Array.isArray(history) ? history : [],
             LAST_DELIVERY_DATE: item.LAST_DELIVERY_DATE || item.lastDeliveryDate || item.DELIVERY_DATE || item.deliveryDate || item.DATE || '' 
           };
@@ -195,9 +204,16 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
     try {
       const action = currentEntry.LIFTING_ID ? 'updateLifting' : 'addLifting';
       const historyJson = Array.isArray(currentEntry.HISTORY) ? JSON.stringify(currentEntry.HISTORY) : (currentEntry.HISTORY || '[]');
+      const target = Number(currentEntry.TARGET_KG) || 0;
+      const delivered = Number(currentEntry.DELIVERED_KG) || 0;
+      const remaining = target - delivered;
+
       const payload = {
         ...currentEntry,
         LIFTING_ID: currentEntry.LIFTING_ID || `LIFT-${Date.now()}`,
+        TARGET_KG: target,
+        DELIVERED_KG: delivered,
+        REMAINING_KG: remaining,
         LAST_DELIVERY_DATE: currentEntry.LAST_DELIVERY_DATE || new Date().toISOString().split('T')[0],
         HISTORY: historyJson,
         NOTES: historyJson
@@ -638,7 +654,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                 <div className="bg-surface-muted p-4 rounded-xl border border-border-main mb-2">
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-xs font-black text-text-dim uppercase">Pending Balance</span>
-                        <span className="text-sm font-black text-rose-600">{selectedLifting.REMAINING_KG.toLocaleString()}kg</span>
+                        <span className="text-sm font-black text-rose-600">{(selectedLifting.REMAINING_KG || 0).toLocaleString()}kg</span>
                     </div>
                     <div className="text-[10px] font-bold text-text-dim text-right">Against PI: {selectedLifting.PI_NO}</div>
                 </div>
