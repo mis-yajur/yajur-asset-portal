@@ -42,8 +42,13 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
         
         // Match PI with its lifting entries
         const matchedPIs = pis.map((pi: PI) => {
-          const piLifts = lifts.filter((l: any) => l.PI_NO === pi.PI_NO);
-          const isFull = piLifts.every((l: any) => (Number(l.TARGET_KG) - Number(l.DELIVERED_KG)) <= 0);
+          const piRef = String(pi.PI_NO || '').trim().toUpperCase();
+          const piLifts = lifts.filter((l: any) => 
+            String(l.PI_NO || '').trim().toUpperCase() === piRef
+          );
+          const isFull = piLifts.length > 0 
+            ? piLifts.every((l: any) => (Number(l.TARGET_KG || 0) - Number(l.DELIVERED_KG || 0)) <= 0)
+            : (pi.STATUS === 'COMPLETE');
           
           return {
             ...pi,

@@ -83,7 +83,9 @@ function initializeSheets() {
     if (!sheet) {
       sheet = ss.insertSheet(sheetName);
       sheet.appendRow(sheetsConfig[sheetName]);
-      
+    }
+    
+    if (sheet.getLastRow() === 1) {
       // Add Dummy Data for testing
       if (sheetName === 'users') {
         sheet.appendRow(["admin", "admin123", "admin", "System Administrator"]);
@@ -95,18 +97,29 @@ function initializeSheets() {
         sheet.appendRow(["PI-001", "2024-05-01", "Yajur Lifting", "19AAECS2882B3ZB", "U17100WB1980PLC032918", "BVFR14492922", "Ghosh Traders", "19AAECS2882B3ZB", "Kolkata", "West Bengal", "700001", "30s Combed Yarn", 100, 5000, 250, 1250000, 1250000, "Authorized Admin", "RUNNING", new Date().toISOString()]);
       }
       if (sheetName === 'lifting_data') {
-        sheet.appendRow(["LIFT-1", "Ghosh Traders", "Mr. Ghosh", "PI-001", 5000, 1500, 3500, 30, 30, "RUNNING", "2024-05-05", 400, "[]", ""]);
+        sheet.appendRow([1, "Ghosh Traders", "Mr. Ghosh", "PI-001", 5000, 5000, 0, 100, 30, "COMPLETE", "2024-05-05", 400, "[]", ""]);
       }
       if (sheetName === 'ledger') {
         sheet.appendRow(["LGR001", "2024-05-01", "PI-001", "Ghosh Traders", "PI Target Lifting", 5000, 250, 0, 1250000, 5000, "Opening Stock Target"]);
         sheet.appendRow(["LGR002", "2024-05-05", "PI-001", "Ghosh Traders", "Delivery (Sales)", 1500, 250, 375000, 875000, 3500, "First Dispatch"]);
+      }
+      if (sheetName === 'archive_pi') {
+        sheet.appendRow(["PI-ARC-001", "2024-04-01", "Yajur Lifting", "19AAECS2882B3ZB", "U17100WB1980PLC032918", "BVFR14492922", "Past Customer", "19AAECS2882B3ZB", "Kolkata", "West Bengal", "700001", "30s Combed Yarn", 100, 1000, 250, 250000, 250000, "Authorized Admin", "COMPLETE", "2024-04-01T10:00:00Z", "2024-04-30T15:00:00Z"]);
+      }
+      if (sheetName === 'archive_lifting') {
+        sheet.appendRow(["LIFT-ARC-1", "Past Customer", "Mr. X", "PI-ARC-001", 1000, 1000, 0, 100, 30, "COMPLETE", "2024-04-25", 1000, "[]", "Automatically Archived", "2024-04-30T15:00:00Z"]);
       }
     }
   }
 }
 
 function login(username, password) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('users');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('users');
+  if (!sheet) {
+    initializeSheets();
+    sheet = ss.getSheetByName('users');
+  }
   const values = sheet.getDataRange().getValues();
   const headers = values[0];
   
@@ -124,8 +137,15 @@ function login(username, password) {
 }
 
 function getData(sheetName) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    initializeSheets();
+    sheet = ss.getSheetByName(sheetName);
+  }
   const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return []; // Only headers
+
   const headers = values[0];
   const data = [];
   
@@ -140,7 +160,12 @@ function getData(sheetName) {
 }
 
 function addRow(sheetName, params) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    initializeSheets();
+    sheet = ss.getSheetByName(sheetName);
+  }
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   
   if (sheetName === 'pi_data' && !params.CREATED_AT) {
@@ -157,7 +182,12 @@ function addRow(sheetName, params) {
 
 function bulkUpload(sheetName, rows) {
   if (!rows || !rows.length) return { success: true, count: 0 };
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    initializeSheets();
+    sheet = ss.getSheetByName(sheetName);
+  }
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   
   const dataToAppend = rows.map(params => {
@@ -172,7 +202,12 @@ function bulkUpload(sheetName, rows) {
 }
 
 function updateRow(sheetName, idKey, params) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    initializeSheets();
+    sheet = ss.getSheetByName(sheetName);
+  }
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
   const idIndex = headers.indexOf(idKey);
@@ -191,7 +226,12 @@ function updateRow(sheetName, idKey, params) {
 }
 
 function deleteRow(sheetName, idKey, idValue) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    initializeSheets();
+    sheet = ss.getSheetByName(sheetName);
+  }
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
   const idIndex = headers.indexOf(idKey);
@@ -231,6 +271,8 @@ function syncLedger(rows) {
 
 function archivePI(piNo) {
   if (!piNo) throw new Error('PI_NO is required for archiving');
+  const targetPiNo = String(piNo).trim().toUpperCase();
+  console.log('Archiving PI: ' + targetPiNo);
   
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const piSheet = ss.getSheetByName('pi_data');
@@ -238,7 +280,10 @@ function archivePI(piNo) {
   const arcPiSheet = ss.getSheetByName('archive_pi');
   const arcLiftSheet = ss.getSheetByName('archive_lifting');
 
-  if (!arcPiSheet || !arcLiftSheet) initializeSheets();
+  if (!arcPiSheet || !arcLiftSheet) {
+    console.log('Archive sheets missing, initializing...');
+    initializeSheets();
+  }
 
   const piDataValues = piSheet.getDataRange().getValues();
   const piHeaders = piDataValues[0];
@@ -249,14 +294,18 @@ function archivePI(piNo) {
   let piRowIndex = -1;
 
   for (let i = 1; i < piDataValues.length; i++) {
-    if (String(piDataValues[i][piNoIdx]) === String(piNo)) {
+    const currentPiNo = String(piDataValues[i][piNoIdx]).trim().toUpperCase();
+    if (currentPiNo === targetPiNo) {
       piRowToArchive = piDataValues[i];
       piRowIndex = i + 1;
       break;
     }
   }
 
-  if (!piRowToArchive) throw new Error('PI not found: ' + piNo);
+  if (!piRowToArchive) {
+    console.warn('PI not found in active list: ' + targetPiNo);
+    throw new Error('PI not found in active list: ' + targetPiNo);
+  }
 
   // 1. Copy PI to Archive
   const arcPiHeaders = arcPiSheet.getRange(1, 1, 1, arcPiSheet.getLastColumn()).getValues()[0];
@@ -266,6 +315,7 @@ function archivePI(piNo) {
     return idx !== -1 ? piRowToArchive[idx] : "";
   });
   arcPiSheet.appendRow(newArcPiRow);
+  console.log('PI header archived');
 
   // 2. Archive associated Lifting data
   const liftDataValues = liftSheet.getDataRange().getValues();
@@ -275,7 +325,8 @@ function archivePI(piNo) {
 
   const rowsToRemove = [];
   for (let i = 1; i < liftDataValues.length; i++) {
-    if (String(liftDataValues[i][liftPiIdx]) === String(piNo)) {
+    const currentLiftPiNo = String(liftDataValues[i][liftPiIdx]).trim().toUpperCase();
+    if (currentLiftPiNo === targetPiNo) {
       const arcLiftRow = arcLiftHeaders.map(h => {
         if (h === 'ARCHIVED_AT') return archiveTime;
         const idx = liftHeaders.indexOf(h);
@@ -285,10 +336,16 @@ function archivePI(piNo) {
       rowsToRemove.push(i + 1);
     }
   }
+  console.log('Lifting entries archived: ' + rowsToRemove.length);
 
-  // 3. Delete from original sheets (Reverse order)
-  rowsToRemove.sort((a, b) => b - a).forEach(row => liftSheet.deleteRow(row));
+  // 3. Delete from original sheets (Reverse order to maintain indices)
+  if (rowsToRemove.length > 0) {
+    rowsToRemove.sort((a, b) => b - a).forEach(row => {
+      liftSheet.deleteRow(row);
+    });
+  }
   piSheet.deleteRow(piRowIndex);
+  console.log('Original rows deleted');
 
-  return { success: true, piNo: piNo };
+  return { success: true, piNo: piNo, archivedAt: archiveTime, liftCount: rowsToRemove.length };
 }
