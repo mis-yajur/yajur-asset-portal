@@ -45,6 +45,16 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     fetchData();
   }, [onNotify]);
 
+  // Sync effect when data is available
+  React.useEffect(() => {
+    if (!isLoading && piData.length > 0) {
+      const timer = setTimeout(() => {
+        syncToSheet();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, piData.length]);
+
   // Calculate Ledger Rows
   const ledgerEntries = useMemo(() => {
     const stockEntries: any[] = [];

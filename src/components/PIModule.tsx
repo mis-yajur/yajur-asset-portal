@@ -128,17 +128,23 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
     }
 
     setIsLoading(true);
+    onNotify('Info', 'Preparing data for synchronization...', 'info');
+    
     try {
-      const isEdit = piData.some(p => String(p.PI_NO || '').trim() === piNo);
+      const isEdit = piData.some(p => String(p.PI_NO || '').trim().toLowerCase() === piNo.toLowerCase());
       const action = isEdit ? 'updatePI' : 'addPI';
       
       const qty = Number(currentPI?.QUANTITY_KG) || 0;
       const rate = Number(currentPI?.RATE_PER_UNIT) || 0;
       const amount = qty * rate;
 
+      // Ensure INVOICE_DATE is set
+      const invoiceDate = currentPI?.INVOICE_DATE || new Date().toISOString().split('T')[0];
+
       const payload = {
         ...currentPI,
         PI_NO: piNo,
+        INVOICE_DATE: invoiceDate,
         CUSTOMER_NAME: currentPI?.CUSTOMER_NAME || 'GENERAL ACCOUNT',
         ITEM_TOTAL: amount,
         NET_AMOUNT: amount,
@@ -152,17 +158,22 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
         CREATED_AT: currentPI?.CREATED_AT || new Date().toISOString()
       };
 
+      console.log(`[PIModule] Submitting ${action}:`, payload);
       const res = await apiCall(action, payload);
       
       if (res.success) {
-        onNotify('Success', `PI ${currentPI.PI_NO} synchronized`, 'success');
-        onLog(isEdit ? 'Update PI' : 'Add PI', `ID: ${currentPI.PI_NO}`);
+        onNotify('Success', `PI record ${piNo} successfully ${isEdit ? 'updated' : 'created'}`, 'success');
+        onLog(isEdit ? 'Update PI' : 'Add PI', `ID: ${piNo}, Qty: ${qty}kg`);
         setIsModalOpen(false);
         setCurrentEntry(null);
         await loadData();
       } else {
-        onNotify('Error', res.error || 'Sync failed', 'error');
+        console.error('[PIModule] Sync failed:', res.error);
+        onNotify('Sync Error', res.error || 'The system could not process this PI record.', 'error');
       }
+    } catch (error) {
+      console.error('[PIModule] Fatal sync error:', error);
+      onNotify('Critical Error', 'Communication with the fiscal mainframe failed.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -411,8 +422,8 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                 </div>
              </div>
 
-             <form onSubmit={handleSave} className="p-8 space-y-8 max-h-[60vh] overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <form onSubmit={handleSave} className="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">PI Sequence ID</label>
                         <input 
