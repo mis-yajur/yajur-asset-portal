@@ -50,16 +50,6 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     fetchData();
   }, [onNotify]);
 
-  // Sync effect when data is available
-  React.useEffect(() => {
-    if (!isLoading && piData.length > 0) {
-      const timer = setTimeout(() => {
-        syncToSheet();
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoading, piData.length]);
-
   // Calculate Ledger Rows
   const ledgerEntries = useMemo(() => {
     const stockEntries: any[] = [];
@@ -301,10 +291,10 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
           BALANCE: e.balanceAmt
         }));
 
-      onNotify('Info', 'Initiating connection to mainframe...', 'info');
+      // onNotify('Info', 'Initiating connection to mainframe...', 'info');
       const res = await apiCall('syncLedger', { rows });
       if (res.success) {
-        onNotify('Success', 'Ledger Sheet Synchronized Successfully', 'success');
+        // onNotify('Success', 'Ledger Sheet Synchronized Successfully', 'success');
       } else {
         onNotify('Error', 'Sync Failure: ' + res.error, 'error');
       }

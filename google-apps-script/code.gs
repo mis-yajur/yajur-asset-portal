@@ -372,45 +372,46 @@ function getReports(startDate, endDate) {
     return d >= start && d <= end;
   });
 
-  // 1. Customer-wise Summary (Include all active or recently lifted customers)
+  // 1. Customer-wise Summary (Include all customers with any activity)
   const customerDict = {};
   allLifts.forEach(l => {
+    const name = l.ACCOUNT || 'Unknown';
+    if (!customerDict[name]) customerDict[name] = { account: name, totalDelivered: 0, totalPending: 0 };
+    
     const d = parseDate(l.LAST_DELIVERY_DATE);
-    // Include if within date range OR if it has pending balance
+    const isWithinRange = d && d >= start && d <= end;
+    
     const target = Number(l.TARGET_KG) || 0;
     const delivered = Number(l.DELIVERED_KG) || 0;
     const pending = Math.max(0, target - delivered);
     
-    const isWithinRange = d && d >= start && d <= end;
-    
-    if (isWithinRange || pending > 0) {
-      const name = l.ACCOUNT || 'Unknown';
-      if (!customerDict[name]) customerDict[name] = { account: name, totalDelivered: 0, totalPending: 0 };
-      
-      if (isWithinRange) {
-        customerDict[name].totalDelivered += delivered;
-      }
-      customerDict[name].totalPending += (pending <= 100 ? 0 : pending);
+    if (isWithinRange) {
+      customerDict[name].totalDelivered += delivered;
+    }
+    // Always track pending if it's not completed
+    if (l.STATUS !== 'COMPLETE' && pending > 100) {
+      customerDict[name].totalPending += pending;
     }
   });
 
   // 2. PI-wise Summary
   const piDict = {};
   allLifts.forEach(l => {
+    const no = l.PI_NO || 'Unknown';
+    if (!piDict[no]) piDict[no] = { piNo: no, totalDelivered: 0, totalPending: 0 };
+    
     const d = parseDate(l.LAST_DELIVERY_DATE);
+    const isWithinRange = d && d >= start && d <= end;
+    
     const target = Number(l.TARGET_KG) || 0;
     const delivered = Number(l.DELIVERED_KG) || 0;
     const pending = Math.max(0, target - delivered);
-    const isWithinRange = d && d >= start && d <= end;
     
-    if (isWithinRange || pending > 0) {
-      const no = l.PI_NO || 'Unknown';
-      if (!piDict[no]) piDict[no] = { piNo: no, totalDelivered: 0, totalPending: 0 };
-      
-      if (isWithinRange) {
-        piDict[no].totalDelivered += delivered;
-      }
-      piDict[no].totalPending += (pending <= 100 ? 0 : pending);
+    if (isWithinRange) {
+      piDict[no].totalDelivered += delivered;
+    }
+    if (l.STATUS !== 'COMPLETE' && pending > 100) {
+      piDict[no].totalPending += pending;
     }
   });
 

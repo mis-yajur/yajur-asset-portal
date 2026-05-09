@@ -89,7 +89,7 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
              </div>
              <div>
                 <h3 className="text-lg font-black text-primary uppercase tracking-tight">Archive Repository</h3>
-                <p className="text-xs text-text-dim font-bold uppercase tracking-widest">Master Operational Sign-offs</p>
+                <p className="text-xs text-text-dim font-bold uppercase tracking-widest">Master Operational Archive</p>
              </div>
           </div>
 
@@ -98,15 +98,12 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input 
                 type="text"
-                placeholder="Search Archive..."
+                placeholder="Find in Archive..."
                 className="pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none focus:border-accent/40 w-64"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
-            <button className="p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-400 hover:text-primary transition-all">
-               <Download size={18} />
-            </button>
           </div>
         </div>
 
@@ -114,14 +111,14 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Lifting ID</th>
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Account</th>
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">PI No</th>
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Target</th>
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Delivered</th>
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Balance</th>
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Last Date</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">LIFTING_ID</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">ACCOUNT</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">PI_NO</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">TARGET_KG</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">DELIVERED_KG</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">REMAINING_KG</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">STATUS</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">LAST_DELIVERY_DATE</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -140,16 +137,13 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
                   return (
                     <tr key={idx} className="hover:bg-slate-50/50 group transition-all">
                       <td className="px-4 py-4 text-[11px] font-bold text-accent font-mono">{l.LIFTING_ID}</td>
-                      <td className="px-4 py-4">
-                        <div className="text-[11px] font-black text-primary uppercase">{l.ACCOUNT}</div>
-                        <div className="text-[9px] text-slate-400 uppercase">{l.CONTACT}</div>
-                      </td>
+                      <td className="px-4 py-4 text-[11px] font-black text-primary uppercase">{l.ACCOUNT}</td>
                       <td className="px-4 py-4 text-[11px] font-black text-primary">{l.PI_NO}</td>
-                      <td className="px-4 py-4 text-right text-[11px] font-bold text-slate-600">{target.toLocaleString()}</td>
-                      <td className="px-4 py-4 text-right text-[11px] font-bold text-teal-600">{delivered.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-right text-[11px] font-bold text-slate-600 font-mono">{target.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-right text-[11px] font-bold text-teal-600 font-mono">{delivered.toLocaleString()}</td>
                       <td className="px-4 py-4 text-right">
                         <span className={cn(
-                          "text-[11px] font-black px-2 py-0.5 rounded-lg",
+                          "text-[11px] font-black px-2 py-0.5 rounded-lg font-mono",
                           remaining <= 0 ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-700"
                         )}>
                           {remaining <= 0 ? '0' : remaining.toLocaleString()}
