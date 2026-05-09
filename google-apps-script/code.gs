@@ -16,6 +16,9 @@ function doPost(e) {
   try {
     let result;
     switch (action) {
+      case 'login': 
+        result = login(params.username, params.password); 
+        break;
       case 'getLiftingData': result = getData('lifting_data'); break;
       case 'getPIData': result = getData('pi_data'); break;
       case 'getCustomers': result = getData('customer_master'); break;
@@ -59,6 +62,7 @@ function doPost(e) {
 function initializeSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetsConfig = {
+    'users': ["USERNAME", "PASSWORD", "ROLE", "NAME"],
     'lifting_data': ["LIFTING_ID", "ACCOUNT", "CONTACT", "PI_NO", "TARGET_KG", "DELIVERED_KG", "REMAINING_KG", "COMPLETION", "FREQUENCY", "STATUS", "LAST_DELIVERY_DATE", "LAST_QTY", "HISTORY", "NOTES"],
     'pi_data': ["PI_NO", "INVOICE_DATE", "SELLER_NAME", "SELLER_GSTIN", "SELLER_CIN", "CERT_NO", "CUSTOMER_NAME", "CUSTOMER_GST", "DELIVERY_ADDR", "DELIVERY_STATE", "DELIVERY_PIN", "PRODUCT_QUALITY", "UNIT_COUNT", "QUANTITY_KG", "RATE_PER_UNIT", "ITEM_TOTAL", "NET_AMOUNT", "AUTHORIZED_SIGNATORY", "STATUS", "CREATED_AT"],
     'customer_master': ["SL", "PARTY_CODE", "PARTY_NAME", "ADDRESS1", "ADDRESS2", "ADDRESS3", "STATE_CODE", "GSTIN", "PAN_NO", "MOBILE_NO", "EMAIL_ID", "BANK_CODE", "IFSC_BRANCH", "IFSC_CODE", "ACC_NO"],
@@ -73,6 +77,9 @@ function initializeSheets() {
       sheet.appendRow(sheetsConfig[sheetName]);
       
       // Add Dummy Data for testing
+      if (sheetName === 'users') {
+        sheet.appendRow(["admin", "admin123", "admin", "System Administrator"]);
+      }
       if (sheetName === 'customer_master') {
         sheet.appendRow(["1", "CUS001", "Ghosh Traders", "Kolkata", "", "", "19", "19AAECS2882B3ZB", "PAN123", "9876543210", "ghosh@test.com", "SBI", "Main", "SBIN00123", "123456789"]);
         sheet.appendRow(["2", "CUS002", "Dutta Enterprise", "Howrah", "", "", "19", "19BBECS2882B3ZB", "PAN456", "9876543211", "dutta@test.com", "HDFC", "Howrah", "HDFC00123", "987654321"]);
@@ -89,6 +96,24 @@ function initializeSheets() {
       }
     }
   }
+}
+
+function login(username, password) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('users');
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0];
+  
+  const userIdx = headers.indexOf('USERNAME');
+  const passIdx = headers.indexOf('PASSWORD');
+  
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][userIdx] == username && values[i][passIdx] == password) {
+      const user = {};
+      headers.forEach((h, idx) => user[h] = values[i][idx]);
+      return user;
+    }
+  }
+  throw new Error('Invalid credentials');
 }
 
 function getData(sheetName) {

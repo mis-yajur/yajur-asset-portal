@@ -1734,17 +1734,29 @@ function LoginPage({ onLogin }: { onLogin: (u: User) => void }) {
   const [password, setPassword] = useState('admin123');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showApiConfig, setShowApiConfig] = useState(false);
+  const [tempApiUrl, setTempApiUrl] = useState(getApiUrl());
 
   const handleSignIn = async () => {
     setIsLoading(true);
     setError('');
-    const res = await apiCall('login', { username, password });
-    if (res.success) {
-      onLogin(res.user);
-    } else {
-      setError(res.error || 'Identity verification failed');
+    try {
+      const res = await apiCall('login', { username, password });
+      if (res.success) {
+        onLogin(res.data);
+      } else {
+        setError(res.error || 'Identity verification failed');
+      }
+    } catch (err: any) {
+      setError('Connection failed. Please check your API URL.');
     }
     setIsLoading(false);
+  };
+
+  const saveApiUrl = () => {
+    setApiUrl(tempApiUrl);
+    setShowApiConfig(false);
+    setError('API URL updated. Try logging in again.');
   };
 
   return (
@@ -1762,44 +1774,77 @@ function LoginPage({ onLogin }: { onLogin: (u: User) => void }) {
           <p className="text-xs font-black text-slate-500 uppercase tracking-[0.25em] mt-4">Enterprise Lifting Engine</p>
         </div>
 
-        <div className="w-full space-y-6">
-          <div className="space-y-2">
-            <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Identity UID</label>
-            <div className="relative group">
-              <Users size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-accent transition-colors" />
+        {showApiConfig ? (
+          <div className="w-full space-y-6">
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Setup Backend URL</label>
               <input 
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-white text-sm outline-none focus:ring-4 focus:ring-accent/20 focus:border-accent/50 transition-all font-bold placeholder:text-slate-700"
-                placeholder="User name"
+                value={tempApiUrl}
+                onChange={e => setTempApiUrl(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white text-sm outline-none focus:ring-4 focus:ring-accent/20 transition-all font-bold"
+                placeholder="Google App Script URL"
               />
             </div>
+            <button 
+              onClick={saveApiUrl}
+              className="w-full bg-accent text-white py-5 rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-accent/20 hover:scale-[1.02] transition-all"
+            >
+              Sync Endpoint
+            </button>
+            <button 
+              onClick={() => setShowApiConfig(false)}
+              className="w-full text-slate-500 text-[10px] font-black uppercase tracking-widest hover:text-white transition-colors"
+            >
+              Back to Login
+            </button>
           </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Access Token</label>
-            <div className="relative group">
-              <LogOut size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-accent transition-colors rotate-180" />
-              <input 
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-white text-sm outline-none focus:ring-4 focus:ring-accent/20 focus:border-accent/50 transition-all font-bold placeholder:text-slate-700"
-                placeholder="••••••••"
-              />
+        ) : (
+          <div className="w-full space-y-6">
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Identity UID</label>
+              <div className="relative group">
+                <Users size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-accent transition-colors" />
+                <input 
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-white text-sm outline-none focus:ring-4 focus:ring-accent/20 focus:border-accent/50 transition-all font-bold placeholder:text-slate-700"
+                  placeholder="User name"
+                />
+              </div>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">Access Token</label>
+              <div className="relative group">
+                <LogOut size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-accent transition-colors rotate-180" />
+                <input 
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-white text-sm outline-none focus:ring-4 focus:ring-accent/20 focus:border-accent/50 transition-all font-bold placeholder:text-slate-700"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            {error && <div className="text-xs font-black text-rose-500 uppercase tracking-widest text-center animate-pulse">{error}</div>}
+
+            <button 
+              onClick={handleSignIn}
+              disabled={isLoading}
+              className="w-full py-5 rounded-[1.25rem] bg-accent text-white font-black uppercase tracking-widest text-[11px] hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-accent/20 disabled:opacity-50 disabled:grayscale flex items-center justify-center"
+            >
+              {isLoading ? "Validating..." : "Initiate Login"}
+            </button>
+
+            <button 
+              onClick={() => setShowApiConfig(true)}
+              className="w-full mt-4 flex items-center justify-center gap-2 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:text-white transition-colors"
+            >
+              <TrendingUp size={12} /> Configure API
+            </button>
           </div>
-
-          {error && <div className="text-xs font-black text-rose-500 uppercase tracking-widest text-center animate-pulse">{error}</div>}
-
-          <button 
-            onClick={handleSignIn}
-            disabled={isLoading}
-            className="w-full py-5 rounded-[1.25rem] bg-accent text-white font-black uppercase tracking-widest text-[11px] hover:opacity-90 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-accent/20 disabled:opacity-50 disabled:grayscale flex items-center justify-center"
-          >
-            {isLoading ? "Validating..." : "Initiate Login"}
-          </button>
-        </div>
+        )}
 
         <div className="mt-10 pt-8 border-t border-white/5 w-full text-center">
           <p className="text-slate-600 text-xs font-black uppercase tracking-widest leading-relaxed">
