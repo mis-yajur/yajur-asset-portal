@@ -367,7 +367,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                 <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-6 bg-white/5 p-5 rounded-2xl border border-white/10">
                     <div>
                         <div className="text-[11px] font-black text-slate-500 uppercase mb-1">Seller Identity</div>
-                        <div className="text-sm font-black">Yajur Fibres Limited</div>
+                        <div className="text-sm font-black">Yajur Lifting</div>
                     </div>
                     <div>
                         <div className="text-[11px] font-black text-slate-500 uppercase mb-1">Tax Fingerprint</div>
