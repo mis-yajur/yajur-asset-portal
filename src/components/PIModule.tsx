@@ -240,7 +240,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                 const totalDelivered = liftingMap[piNo]?.delivered || 0;
                 const progress = (totalDelivered / (pi.QUANTITY_KG || 1)) * 100;
                 const remaining = (pi.QUANTITY_KG || 0) - totalDelivered;
-                const isPracticallyComplete = remaining < 100 && remaining > 0;
+                const isPracticallyComplete = remaining <= 100 && remaining > 0;
                 
                 return (
                     <div key={pi.PI_NO} className="bg-surface-card rounded-custom border border-border-main p-6 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between border-l-4 border-l-primary/10 hover:border-l-accent">

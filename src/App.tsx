@@ -51,6 +51,7 @@ import CustomersModule from './components/CustomersModule';
 import ProductsModule from './components/ProductsModule';
 import ReportsModule from './components/ReportsModule';
 import { LedgerModule } from './components/LedgerModule';
+import ArchiveModule from './components/ArchiveModule';
 
 import { THEME_PRESETS } from './constants';
 
@@ -304,6 +305,8 @@ export default function App() {
               <ReportsModule onNotify={addNotification} onLog={logAction} />
             ) : currentPage === 'ledger' ? (
               <LedgerModule onNotify={addNotification} />
+            ) : currentPage === 'archive' ? (
+              <ArchiveModule onNotify={addNotification} />
             ) : currentPage === 'settings' ? (
               user?.role === 'admin' ? (
                 <SettingsPage theme={theme} onThemeChange={setTheme} />
@@ -369,6 +372,7 @@ function Header({
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
     { id: 'lifting', label: 'Operations', icon: <Truck size={18} /> },
+    { id: 'archive', label: 'Archive', icon: <History size={18} /> },
     { id: 'ledger', label: 'Ledger', icon: <FileText size={18} /> },
     { id: 'pi', label: 'Proforma', icon: <FileText size={18} /> },
     { id: 'customers', label: 'Customers', icon: <Users size={18} /> },
@@ -705,9 +709,9 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
           lifts.forEach((l: any) => {
             const delivered = Number(l.DELIVERED_KG) || 0;
             const target = Number(l.TARGET_KG) || 0;
-            // < 100kg rule: if remaining < 100kg, treat as 0 pending
+            // <= 100kg rule: if remaining <= 100kg, treat as 0 pending
             const actualPending = Math.max(0, target - delivered);
-            const pending = actualPending < 100 ? 0 : actualPending;
+            const pending = actualPending <= 100 ? 0 : actualPending;
             
             totalDelivered += delivered;
             
@@ -1324,6 +1328,7 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
                         <tr className="bg-slate-50 border-b border-slate-100">
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">PI NO</th>
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Operation</th>
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Quality</th>
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Target (kg)</th>
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
@@ -1334,6 +1339,10 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
                            <tr key={idx} className="hover:bg-slate-50/50">
                              <td className="px-4 py-3 text-primary font-black">{item.PI_NO}</td>
                              <td className="px-4 py-3 uppercase">{item.CUSTOMER_NAME}</td>
+                             <td className="px-4 py-3 italic text-slate-400">
+                                {/* Operation is empty for PIs in matrix as requested */}
+                                {""}
+                             </td>
                              <td className="px-4 py-3">{item.PRODUCT_QUALITY}</td>
                              <td className="px-4 py-3 text-right">{item.QUANTITY_KG?.toLocaleString()}</td>
                              <td className="px-4 py-3 text-center">

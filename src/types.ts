@@ -1,4 +1,4 @@
-export type Page = 'dashboard' | 'lifting' | 'pi' | 'customers' | 'products' | 'reports' | 'settings' | 'audit-log' | 'ledger';
+export type Page = 'dashboard' | 'lifting' | 'pi' | 'customers' | 'products' | 'reports' | 'settings' | 'audit-log' | 'ledger' | 'archive';
 
 export interface User {
   username: string;

@@ -156,7 +156,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
       ].map((h: any) => `${h.deliveryDate}: ${h.quantityKg}kg`).join(' | ');
 
       const remainingKg = selectedLifting.REMAINING_KG - newDelivery.quantityKg;
-      const isComplete = remainingKg < 100;
+      const isComplete = remainingKg <= 100;
       
       const updatedLifting = {
         ...selectedLifting,
@@ -373,7 +373,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                            </div>
                            <div className="w-full max-w-[120px] pt-1 mt-1 border-t border-slate-100 text-center">
                              <div className="text-[11px] font-black text-slate-500 uppercase tracking-tighter">Balance (Kg)</div>
-                             <div className={cn("text-sm font-black", item.REMAINING_KG < 100 ? "text-teal-600" : "text-rose-600")}>
+                             <div className={cn("text-sm font-black", item.REMAINING_KG <= 100 ? "text-teal-600" : "text-rose-600")}>
                                {item.REMAINING_KG <= 0 ? "FULFILLED" : `${item.REMAINING_KG.toLocaleString()}kg`}
                              </div>
                            </div>
