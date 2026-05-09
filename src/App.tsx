@@ -759,12 +759,29 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
             pending: yearDict[k].pending
           }));
 
+          const piStatusReport: Record<string, any> = {
+            'RUNNING': { count: 0, delivered: 0, target: 0 },
+            'COMPLETE': { count: 0, delivered: 0, target: 0 }
+          };
+
+          pis.forEach((p: any) => {
+            const status = p.STATUS === 'COMPLETE' ? 'COMPLETE' : 'RUNNING';
+            piStatusReport[status].count++;
+            
+            const matchingLifts = lifts.filter((l: any) => l.PI_NO === p.PI_NO);
+            const delivered = matchingLifts.reduce((sum: number, l: any) => sum + (Number(l.DELIVERED_KG) || 0), 0);
+            const target = Number(p.QUANTITY_KG) || 0;
+            
+            piStatusReport[status].delivered += delivered;
+            piStatusReport[status].target += target;
+          });
+
           setData({
              monthly: { data: monthlyArr },
              yearly: { data: yearlyArr },
              topPending: { data: topPendingArr },
              pendingPIs: { data: pis.filter((p:any) => p.STATUS !== 'COMPLETE') },
-             piSummary: { data: pis }
+             piSummary: { data: pis, statusReport: piStatusReport }
           });
           
           onNotify("System Synced", "All operational data updated with live production feed.", "success");
@@ -1068,16 +1085,26 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
               { id: 'RUNNING', label: 'PENDING' },
               { id: 'COMPLETE', label: 'COMPLETE' }
             ].map(statusObj => {
-                const count = data?.piSummary?.data?.filter((p:any) => p.STATUS === statusObj.id).length || 0;
-                const total = data?.piSummary?.data?.length || 1;
+                const report = data?.piSummary?.statusReport?.[statusObj.id] || { count: 0, delivered: 0, target: 0 };
+                const count = report.count;
+                const progress = report.target > 0 ? (report.delivered / report.target) * 100 : 0;
+                
                 return (
                     <div key={statusObj.id} className="space-y-1">
                         <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
                             <span className={statusObj.id === 'COMPLETE' ? 'text-teal-600' : 'text-amber-500'}>{statusObj.label}</span>
-                            <span className="text-slate-400">{count} Units</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-slate-400">{count} Units</span>
+                                <span className={cn("text-[9px]", statusObj.id === 'COMPLETE' ? 'text-teal-500' : 'text-amber-400')}>
+                                    {Math.round(progress)}%
+                                </span>
+                            </div>
                         </div>
                         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className={cn("h-full rounded-full transition-all duration-1000", statusObj.id === 'COMPLETE' ? 'bg-teal-500' : 'bg-amber-400')} style={{ width: `${(count/total)*100}%` }} />
+                            <div 
+                                className={cn("h-full rounded-full transition-all duration-1000", statusObj.id === 'COMPLETE' ? 'bg-teal-500' : 'bg-amber-400')} 
+                                style={{ width: `${progress}%` }} 
+                            />
                         </div>
                     </div>
                 )
