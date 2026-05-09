@@ -1064,17 +1064,20 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
           </div>
           
           <div className="space-y-4">
-            {['PENDING', 'COMPLETE'].map(status => {
-                const count = data?.piSummary?.data?.filter((p:any) => p.STATUS === status).length || 0;
+            {[
+              { id: 'RUNNING', label: 'PENDING' },
+              { id: 'COMPLETE', label: 'COMPLETE' }
+            ].map(statusObj => {
+                const count = data?.piSummary?.data?.filter((p:any) => p.STATUS === statusObj.id).length || 0;
                 const total = data?.piSummary?.data?.length || 1;
                 return (
-                    <div key={status} className="space-y-1">
+                    <div key={statusObj.id} className="space-y-1">
                         <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                            <span className={status === 'COMPLETE' ? 'text-teal-600' : 'text-amber-500'}>{status}</span>
+                            <span className={statusObj.id === 'COMPLETE' ? 'text-teal-600' : 'text-amber-500'}>{statusObj.label}</span>
                             <span className="text-slate-400">{count} Units</span>
                         </div>
                         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className={cn("h-full rounded-full transition-all duration-1000", status === 'COMPLETE' ? 'bg-teal-500' : 'bg-amber-400')} style={{ width: `${(count/total)*100}%` }} />
+                            <div className={cn("h-full rounded-full transition-all duration-1000", statusObj.id === 'COMPLETE' ? 'bg-teal-500' : 'bg-amber-400')} style={{ width: `${(count/total)*100}%` }} />
                         </div>
                     </div>
                 )
@@ -1375,7 +1378,7 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
                className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-accent/40 transition-all"
              >
                 <option value="">All Status</option>
-                <option value="PENDING">Pending</option>
+                <option value="RUNNING">Pending</option>
                 <option value="COMPLETE">Complete</option>
              </select>
 
@@ -1563,7 +1566,7 @@ function QuickAddModal({ isOpen, onClose, onAdd }: QuickAddModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAdd({ ...formData, QUANTITY_KG: Number(formData.QUANTITY_KG), STATUS: 'PENDING', INVOICE_DATE: new Date().toISOString().split('T')[0] });
+    onAdd({ ...formData, QUANTITY_KG: Number(formData.QUANTITY_KG), STATUS: 'RUNNING', INVOICE_DATE: new Date().toISOString().split('T')[0] });
     onClose();
     setFormData({ PI_NO: '', CUSTOMER_NAME: '', PRODUCT_QUALITY: '', QUANTITY_KG: '' });
   };
