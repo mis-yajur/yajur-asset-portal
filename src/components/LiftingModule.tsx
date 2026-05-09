@@ -593,16 +593,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                       />
                    </div>
                    <div className="space-y-2">
-                      <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Current Deliveries (KG)</label>
-                      <input 
-                        type="number"
-                        className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-2.5 text-sm font-black outline-none focus:border-accent/40"
-                        value={currentEntry?.DELIVERED_KG || 0}
-                        onChange={e => setCurrentEntry({ ...currentEntry, DELIVERED_KG: Number(e.target.value) })}
-                      />
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Dispatch / Delivery Date</label>
+                       <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Dispatch / Delivery Date</label>
                       <input 
                         type="date"
                         className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-2.5 text-sm font-black outline-none focus:border-accent/40"
