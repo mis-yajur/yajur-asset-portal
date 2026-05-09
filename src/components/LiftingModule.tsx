@@ -62,7 +62,6 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
           let historyNotes = item.NOTES || '';
           let history = [];
           
-          // Try parsing NOTES (JSON) first, then HISTORY
           try {
             history = JSON.parse(historyNotes);
           } catch (e) {
@@ -77,19 +76,54 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
           
           const target = Number(item.TARGET_KG) || 0;
           const delivered = Number(item.DELIVERED_KG) || 0;
-          const remaining = item.REMAINING_KG !== undefined ? Number(item.REMAINING_KG) : (target - delivered);
+          const remaining = Math.max(0, target - delivered);
 
           return { 
             ...item, 
             TARGET_KG: target,
             DELIVERED_KG: delivered,
-            REMAINING_KG: Math.max(0, remaining),
+            REMAINING_KG: remaining,
             FREQUENCY: Number(item.FREQUENCY) || 30,
             HISTORY: Array.isArray(history) ? history : [],
             LAST_DELIVERY_DATE: item.LAST_DELIVERY_DATE || item.lastDeliveryDate || item.DELIVERY_DATE || item.deliveryDate || item.DATE || '' 
           };
         });
-        setLiftingData(parsedData);
+
+        // PI-level completion calculation logic
+        const pis = piRes.data || [];
+        const piStats = new Map();
+        
+        // Group all liftings (active) by PI
+        parsedData.forEach((l: any) => {
+          const piNo = String(l.PI_NO || '').trim().toUpperCase();
+          if (!piStats.has(piNo)) {
+            piStats.set(piNo, { delivered: 0, parts: 0 });
+          }
+          const stats = piStats.get(piNo);
+          stats.delivered += Number(l.DELIVERED_KG) || 0;
+          stats.parts += 1;
+        });
+
+        const finalData = parsedData.map((l: any) => {
+          const piNo = String(l.PI_NO || '').trim().toUpperCase();
+          const p = pis.find((pi: any) => String(pi.PI_NO || '').trim().toUpperCase() === piNo);
+          
+          if (p) {
+            const stats = piStats.get(piNo);
+            const totalRequired = Number(p.QUANTITY_KG) || 0;
+            const tolerance = stats.parts * 100;
+            const isPiComplete = stats.delivered >= (totalRequired - tolerance);
+            
+            return {
+              ...l,
+              IS_PI_COMPLETE: isPiComplete,
+              TOTAL_PI_REMAINING: Math.max(0, totalRequired - stats.delivered)
+            };
+          }
+          return { ...l, IS_PI_COMPLETE: false, TOTAL_PI_REMAINING: l.REMAINING_KG };
+        });
+
+        setLiftingData(finalData);
       }
       if (piRes.success) setPiData(piRes.data || []);
       if (custRes.success) setCustomers(custRes.data || []);
@@ -436,25 +470,25 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                       <td className="px-5 py-4">
                         <span className={cn(
                           "px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-widest",
-                          item.REMAINING_KG <= 100 ? "bg-teal-100 text-teal-700 shadow-sm border border-teal-200" : 
+                          item.IS_PI_COMPLETE ? "bg-teal-100 text-teal-700 shadow-sm border border-teal-200" : 
                           item.STATUS === 'RUNNING' ? "bg-blue-100 text-blue-700" : 
                           "bg-amber-100 text-amber-700"
                         )}>
-                          {item.REMAINING_KG <= 100 ? 'COMPLETE' : (item.STATUS === 'COMPLETE' ? 'RUNNING' : item.STATUS)}
+                          {item.IS_PI_COMPLETE ? 'COMPLETE' : (item.STATUS === 'COMPLETE' ? 'RUNNING' : item.STATUS)}
                         </span>
-                        {item.REMAINING_KG <= 100 && (
+                        {item.IS_PI_COMPLETE && (
                           <div className="mt-1 text-[9px] font-black text-teal-600 uppercase tracking-tighter text-center">
-                            Ready to Archive
+                            PI FULLY DELIVERED
                           </div>
                         )}
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {item.REMAINING_KG <= 100 && (
+                          {item.IS_PI_COMPLETE && (
                             <button 
                               onClick={() => handleArchive(item.PI_NO)}
                               className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
-                              title="Move to Archive"
+                              title="Archive Entire PI"
                             >
                               <Archive size={16} />
                             </button>

@@ -19,8 +19,16 @@ function doPost(e) {
       case 'login': 
         result = login(params.username, params.password); 
         break;
-      case 'getLiftingData': result = getData('lifting_data'); break;
-      case 'getPIData': result = getData('pi_data'); break;
+      case 'getLiftingData': {
+        const data = getData('lifting_data');
+        result = data.filter(r => String(r.STATUS).toUpperCase() !== 'COMPLETE');
+        break;
+      }
+      case 'getPIData': {
+        const data = getData('pi_data');
+        result = data.filter(r => String(r.STATUS).toUpperCase() !== 'COMPLETE');
+        break;
+      }
       case 'getCustomers': result = getData('customer_master'); break;
       case 'getProducts': result = getData('product_master'); break;
       case 'getLedger': result = getData('ledger'); break;
