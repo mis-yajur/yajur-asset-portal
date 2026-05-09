@@ -55,15 +55,20 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
       const piKey = (pi.PI_NO || '').trim();
       piMap.set(piKey, pi);
 
+      // Find associated lifting target to use instead of full PI quantity if present
+      const lifting = liftingData.find(l => (l.PI_NO || '').trim() === piKey);
+      const targetQty = lifting ? Number(lifting.TARGET_KG) : Number(pi.QUANTITY_KG);
+      const rate = Number(pi.RATE_PER_UNIT) || 0;
+
       // Stock Ledger Entry: Inward (Production)
       stockEntries.push({
         date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
         type: 'Stock Prepared',
         account: pi.CUSTOMER_NAME || 'Factory / Master',
         piNo: piKey,
-        qtyIn: Number(pi.QUANTITY_KG) || 0,
+        qtyIn: targetQty,
         qtyOut: 0,
-        rate: Number(pi.RATE_PER_UNIT) || 0,
+        rate: rate,
         amount: 0,
         remarks: `PI Created: ${pi.PRODUCT_QUALITY || ''}`
       });
@@ -74,10 +79,11 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
         type: 'PI Target Lifting',
         account: pi.CUSTOMER_NAME,
         piNo: piKey,
-        qty: Number(pi.QUANTITY_KG) || 0,
-        rate: Number(pi.RATE_PER_UNIT) || 0,
+        qty: targetQty,
+        rate: rate,
         debitAmt: 0,
         creditAmt: 0,
+        isInitial: true,
         remarks: `Target set for ${pi.PRODUCT_QUALITY}`
       });
     });
@@ -169,17 +175,32 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
       
       const res: any[] = [];
       Object.keys(byCustomer).sort().forEach(acc => {
-        let balAmt = 0;
+        let runningPriceBal = 0;
+        let runningQtyBal = 0;
+        
         byCustomer[acc].forEach(entry => {
-          balAmt += entry.debitAmt - entry.creditAmt;
-          res.push({ ...entry, balanceAmt: balAmt, group: acc });
+          if (entry.isInitial) {
+             runningPriceBal += (entry.qty * entry.rate);
+             runningQtyBal += entry.qty;
+          } else {
+             // Reductions for deliveries
+             runningPriceBal -= entry.debitAmt;
+             runningQtyBal -= entry.qty;
+          }
+          res.push({ 
+            ...entry, 
+            balanceAmt: runningPriceBal, 
+            balanceQty: runningQtyBal,
+            group: acc 
+          });
         });
         
         // Push a summary row for party
         res.push({
            isSummary: true,
            group: acc,
-           balanceAmt: balAmt
+           balanceAmt: runningPriceBal,
+           balanceQty: runningQtyBal
         });
       });
       return res;
@@ -212,27 +233,21 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
 
   const syncToSheet = async () => {
     try {
-      // Sort entries by date to ensure balance is calculated correctly
-      const sorted = [...ledgerEntries.stockEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      
-      let runningBalance = 0;
-      const rows = sorted.map(e => {
-        const qtyIn = Number(e.qtyIn) || 0;
-        const qtyOut = Number(e.qtyOut) || 0;
-        runningBalance += (qtyIn - qtyOut);
-        
-        return {
+      const rows = filteredLedger
+        .filter(e => !e.isSummary)
+        .map(e => ({
           ID: Math.random().toString(36).substr(2, 9).toUpperCase(),
           DATE: new Date(e.date).toLocaleString(),
           PI_NO: e.piNo || '',
           ACCOUNT: e.account || '',
           TYPE: e.type || '',
-          DEBIT_TARGET: qtyIn,
-          CREDIT_DELIVERED: qtyOut,
-          BALANCE: runningBalance,
+          QTY: e.qty || 0,
+          RATE: e.rate || 0,
+          DELIVERED_AMT: e.debitAmt || 0,
+          PRICE_BALANCE: e.balanceAmt || 0,
+          QTY_BALANCE: e.balanceQty || 0,
           REMARKS: e.remarks || ''
-        };
-      });
+        }));
 
       onNotify('Info', 'Initiating connection to mainframe...', 'info');
       const res = await apiCall('syncLedger', { rows });
@@ -429,11 +444,11 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                           </>
                         ) : (
                           <>
-                            <th className="p-4">Qty</th>
-                            <th className="p-4">Rate</th>
-                            <th className="p-4 bg-red-50/30 text-red-600 text-right">Debit (₹)</th>
-                            <th className="p-4 bg-green-50/30 text-green-600 text-right">Credit (₹)</th>
-                            <th className="p-4 text-right text-primary-main">Balance (₹)</th>
+                            <th className="p-4 text-right">Delivered Qty</th>
+                            <th className="p-4 text-right">Rate</th>
+                            <th className="p-4 bg-red-50/30 text-red-600 text-right">Delivered Amt</th>
+                            <th className="p-4 text-right text-primary-main">Price Balance</th>
+                            <th className="p-4 text-right text-indigo-600 font-black">Qty Balance</th>
                           </>
                         )}
                         
@@ -468,20 +483,22 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                               </>
                             ) : (
                               <>
-                                <td className="p-4">
-                                  {entry.qty > 0 ? `${entry.qty.toLocaleString()} kg` : '-'}
-                                </td>
-                                <td className="p-4">
-                                  {entry.rate > 0 ? `₹${entry.rate}` : '-'}
+                                <td className="p-4 text-right font-bold">
+                                  {entry.isInitial ? entry.qty.toLocaleString() : entry.qty.toLocaleString()}
                                 </td>
                                 <td className="p-4 text-right">
-                                  {entry.debitAmt > 0 ? <div className="text-red-500 font-bold">₹{entry.debitAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</div> : '-'}
+                                  ₹{entry.rate}
                                 </td>
                                 <td className="p-4 text-right">
-                                  {entry.creditAmt > 0 ? <div className="text-green-600 font-bold">₹{entry.creditAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</div> : '-'}
+                                  {entry.debitAmt > 0 ? <div className="text-red-500 font-bold">₹{entry.debitAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</div> : '₹0.00'}
+                                </td>
+                                <td className="p-4 text-right text-primary-main font-black">
+                                  ₹{entry.balanceAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}
                                 </td>
                                 <td className="p-4 text-right">
-                                  <span className="bg-primary-main text-white px-2 py-1 rounded font-bold">₹{entry.balanceAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                  <span className="bg-indigo-600 text-white px-3 py-1 rounded-lg font-black text-xs uppercase tracking-tighter">
+                                    {entry.balanceQty.toLocaleString()} kg
+                                  </span>
                                 </td>
                               </>
                             )}

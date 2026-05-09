@@ -236,24 +236,32 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                         </div>
 
                         <div className="space-y-4">
-                            <div className="grid grid-cols-3 gap-2 bg-surface-muted p-3 rounded-2xl">
-                                <div>
-                                    <div className="text-[10px] font-black text-text-dim uppercase tracking-tighter">PI Gross</div>
+                            <div className="grid grid-cols-2 gap-4 bg-surface-muted p-4 rounded-2xl">
+                                <div className="border-r border-border-main/50 pr-2">
+                                    <div className="text-[10px] font-black text-text-dim uppercase tracking-tighter">Contract Gross</div>
                                     <div className="text-sm font-black text-primary">{pi.QUANTITY_KG?.toLocaleString()}kg</div>
-                                    <div className="text-[9px] font-bold text-text-dim mt-0.5">₹{pi.NET_AMOUNT?.toLocaleString()}</div>
+                                    <div className="text-[9px] font-bold text-text-dim mt-0.5 whitespace-nowrap">Val: ₹{pi.NET_AMOUNT?.toLocaleString()}</div>
                                 </div>
-                                <div className="text-center">
-                                    <div className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter">Lifting Target</div>
+                                <div className="pl-2">
+                                    <div className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter">Plan/Lifting</div>
                                     <div className="text-sm font-black text-indigo-600">
                                        {(liftingMap[piNo]?.assigned || 0).toLocaleString()}kg
                                     </div>
                                     <div className="text-[9px] font-bold text-indigo-400 mt-0.5">
-                                       Left: {Math.max(0, (pi.QUANTITY_KG || 0) - (liftingMap[piNo]?.assigned || 0)).toLocaleString()}kg
+                                       Unassigned: {Math.max(0, (pi.QUANTITY_KG || 0) - (liftingMap[piNo]?.assigned || 0)).toLocaleString()}kg
                                     </div>
                                 </div>
-                                <div className="text-right">
+                                <div className="border-t border-r border-border-main/50 pt-2 pr-2">
+                                    <div className="text-[10px] font-black text-rose-500 uppercase tracking-tighter">Remaining Bal</div>
+                                    <div className="text-sm font-black text-rose-600">{Math.max(0, (pi.QUANTITY_KG || 0) - (liftingMap[piNo]?.delivered || 0)).toLocaleString()}kg</div>
+                                    <div className="text-[9px] font-bold text-rose-400 mt-0.5 flex items-center gap-1">
+                                       <IndianRupee size={8} /> {((Math.max(0, (pi.QUANTITY_KG || 0) - (liftingMap[piNo]?.delivered || 0))) * (pi.RATE_PER_UNIT || 0)).toLocaleString()}
+                                    </div>
+                                </div>
+                                <div className="border-t border-border-main/50 pt-2 pl-2">
                                     <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Delivered</div>
                                     <div className="text-sm font-black text-teal-600">{(liftingMap[piNo]?.delivered || 0).toLocaleString()}kg</div>
+                                    <div className="text-[9px] font-bold text-teal-400 mt-0.5">Progress: {Math.round(progress)}%</div>
                                 </div>
                             </div>
 

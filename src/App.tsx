@@ -98,6 +98,7 @@ ChartJS.defaults.color = '#718096';
 // --- Main App Component ---
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+  const [isAppInitialized, setIsAppInitialized] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -270,7 +271,7 @@ export default function App() {
           {/* Breadcrumbs */}
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <div className="text-xs text-slate-400 font-bold uppercase tracking-widest">Yajur Fibres / Portal</div>
+              <div className="text-xs text-slate-400 font-bold uppercase tracking-widest">Yajur Lifting / Portal</div>
               <h2 className="text-2xl font-black text-primary uppercase lg:text-3xl tracking-tight mt-1">
                 {currentPage === 'dashboard' ? 'Operational Dashboard' : `${currentPage.replace('-', ' ')} Module`}
               </h2>
@@ -325,7 +326,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="p-6 text-center text-xs font-bold text-slate-400 uppercase tracking-widest border-t border-slate-200">
-        © 2026 Yajur Fibres Limited • Enterprise Asset Portal v2.0
+        © 2026 Yajur Lifting • Enterprise Asset Portal v2.1
       </footer>
     </div>
   );
@@ -386,7 +387,7 @@ function Header({
             <Building size={20} />
           </div>
           <div className="hidden xs:block">
-            <h1 className="font-black text-xl tracking-tight leading-none uppercase">Yajur Fibres</h1>
+            <h1 className="font-black text-xl tracking-tight leading-none uppercase">Yajur Lifting</h1>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Lifting Portal</p>
           </div>
         </div>
