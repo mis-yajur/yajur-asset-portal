@@ -136,6 +136,11 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
     e.preventDefault();
     if (!selectedLifting || newDelivery.quantityKg <= 0) return;
 
+    if (newDelivery.quantityKg > (selectedLifting.REMAINING_KG || 0)) {
+      onNotify('Limit Exceeded', `Cannot dispatch ${newDelivery.quantityKg}kg. Remaining balance is only ${selectedLifting.REMAINING_KG}kg.`, 'error');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const newHistoryItem = {
@@ -703,12 +708,22 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
 
                 <div className="space-y-4">
                    <div className="space-y-2">
-                      <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Dispatch Quantum (KG)</label>
+                      <div className="flex justify-between items-end">
+                         <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Dispatch Quantum (KG)</label>
+                         {newDelivery.quantityKg > (selectedLifting.REMAINING_KG || 0) && (
+                           <span className="text-[10px] font-black text-rose-500 uppercase animate-pulse">Exceeds Balance</span>
+                         )}
+                      </div>
                       <input 
                         required
-                        autofocus
+                        autoFocus
                         type="number"
-                        className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-3 text-lg font-black outline-none focus:border-accent"
+                        className={cn(
+                          "w-full bg-surface-muted border rounded-xl px-4 py-3 text-lg font-black outline-none transition-all",
+                          newDelivery.quantityKg > (selectedLifting.REMAINING_KG || 0) 
+                            ? "border-rose-500 ring-4 ring-rose-500/10 text-rose-600 focus:border-rose-600" 
+                            : "border-border-main focus:border-accent"
+                        )}
                         placeholder="0.00"
                         value={newDelivery.quantityKg || ''}
                         onChange={e => setNewDelivery({ ...newDelivery, quantityKg: Number(e.target.value) })}
@@ -736,9 +751,15 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                     </button>
                     <button 
                         type="submit"
-                        className="flex-[2] py-3 bg-accent text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-accent/20"
+                        disabled={newDelivery.quantityKg <= 0 || newDelivery.quantityKg > (selectedLifting.REMAINING_KG || 0) || isLoading}
+                        className={cn(
+                          "flex-[2] py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                          newDelivery.quantityKg <= 0 || newDelivery.quantityKg > (selectedLifting.REMAINING_KG || 0)
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                            : "bg-accent text-white shadow-xl shadow-accent/20 hover:scale-[1.02] active:scale-95"
+                        )}
                     >
-                        Verify & Post
+                        {isLoading ? 'Processing...' : 'Verify & Post'}
                     </button>
                 </div>
              </form>
