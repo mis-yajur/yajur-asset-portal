@@ -212,28 +212,34 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
 
     setIsLoading(true);
     try {
-      const action = currentEntry.LIFTING_ID ? 'updateLifting' : 'addLifting';
-    const historyJson = Array.isArray(currentEntry.HISTORY) ? JSON.stringify(currentEntry.HISTORY) : (currentEntry.HISTORY || '[]');
-    const historyDisplay = Array.isArray(currentEntry.HISTORY) 
-        ? currentEntry.HISTORY.map((h: any) => `${h.deliveryDate}: ${h.quantityKg}kg`).join(' | ')
-        : (currentEntry.HISTORY || '');
+      const isEdit = !!currentEntry.LIFTING_ID;
+      const liftingAction = isEdit ? 'updateLifting' : 'addLifting';
+      
+      const history = Array.isArray(currentEntry.HISTORY) ? currentEntry.HISTORY : [];
+      const historyJson = JSON.stringify(history);
+      const historyDisplay = history.map((h: any) => `${h.deliveryDate}: ${h.quantityKg}kg`).join(' | ');
+
+      const liftingId = currentEntry.LIFTING_ID || `LIFT-${Date.now()}`;
+      const targetKg = Number(currentEntry.TARGET_KG) || 0;
+      const deliveredKg = Number(currentEntry.DELIVERED_KG) || 0;
+      const remainingKg = Math.max(0, targetKg - deliveredKg);
 
       const payload = {
         ...currentEntry,
-        LIFTING_ID: currentEntry.LIFTING_ID || `LIFT-${Date.now()}`,
-        TARGET_KG: target,
-        DELIVERED_KG: delivered,
-        REMAINING_KG: remaining,
+        LIFTING_ID: liftingId,
+        TARGET_KG: targetKg,
+        DELIVERED_KG: deliveredKg,
+        REMAINING_KG: remainingKg,
         LAST_DELIVERY_DATE: currentEntry.LAST_DELIVERY_DATE || new Date().toISOString().split('T')[0],
         HISTORY: historyDisplay,
         NOTES: historyJson
       };
       
-      const res = await apiCall(action, payload);
+      const res = await apiCall(liftingAction, payload);
       
       if (res.success) {
-        onNotify('Success', `Lifting entry ${currentEntry.LIFTING_ID ? 'updated' : 'created'}`, 'success');
-        onLog(currentEntry.LIFTING_ID ? 'Update Lifting' : 'Add Lifting', `PI: ${currentEntry.PI_NO}, Target: ${currentEntry.TARGET_KG}kg`);
+        onNotify('Success', `Lifting entry ${isEdit ? 'updated' : 'created'}`, 'success');
+        onLog(isEdit ? 'Update Lifting' : 'Add Lifting', `PI: ${currentEntry.PI_NO}, Target: ${targetKg}kg`);
         setIsModalOpen(false);
         setCurrentEntry(null);
         await loadData();

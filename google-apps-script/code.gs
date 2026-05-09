@@ -201,7 +201,13 @@ function deleteRow(sheetName, idKey, idValue) {
 }
 
 function syncLedger(rows) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ledger');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('ledger');
+  if (!sheet) {
+    initializeSheets();
+    sheet = ss.getSheetByName('ledger');
+  }
+  
   // Clear existing data except headers
   if (sheet.getLastRow() > 1) {
     sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
@@ -215,5 +221,5 @@ function syncLedger(rows) {
     }));
     sheet.getRange(2, 1, dataToSync.length, headers.length).setValues(dataToSync);
   }
-  return { success: true };
+  return { success: true, count: rows ? rows.length : 0 };
 }

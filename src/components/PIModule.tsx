@@ -120,25 +120,36 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentPI?.PI_NO) {
+    const piNo = (currentPI?.PI_NO || '').trim();
+    
+    if (!piNo) {
       onNotify('Validation Error', 'PI Sequence ID is required', 'error');
       return;
     }
 
     setIsLoading(true);
     try {
-      const isEdit = piData.some(p => p.PI_NO === currentPI.PI_NO);
+      const isEdit = piData.some(p => String(p.PI_NO || '').trim() === piNo);
       const action = isEdit ? 'updatePI' : 'addPI';
       
+      const qty = Number(currentPI?.QUANTITY_KG) || 0;
+      const rate = Number(currentPI?.RATE_PER_UNIT) || 0;
+      const amount = qty * rate;
+
       const payload = {
         ...currentPI,
-        CUSTOMER_NAME: currentPI.CUSTOMER_NAME || 'GENERAL ACCOUNT',
+        PI_NO: piNo,
+        CUSTOMER_NAME: currentPI?.CUSTOMER_NAME || 'GENERAL ACCOUNT',
+        ITEM_TOTAL: amount,
+        NET_AMOUNT: amount,
+        QUANTITY_KG: qty,
+        RATE_PER_UNIT: rate,
         SELLER_NAME: 'Yajur Lifting',
         SELLER_GSTIN: '19AAECS2882B3ZB',
         SELLER_CIN: 'U17100WB1980PLC032918',
         CERT_NO: 'BVFR14492922',
-        STATUS: currentPI.STATUS || 'RUNNING',
-        CREATED_AT: currentPI.CREATED_AT || new Date().toISOString()
+        STATUS: currentPI?.STATUS || 'RUNNING',
+        CREATED_AT: currentPI?.CREATED_AT || new Date().toISOString()
       };
 
       const res = await apiCall(action, payload);
@@ -506,9 +517,13 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                         </button>
                         <button 
                             type="submit"
-                            className="px-10 py-4 bg-accent text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-accent/20 hover:scale-105 active:scale-95 transition-all"
+                            disabled={isLoading}
+                            className={cn(
+                                "px-10 py-4 bg-accent text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-accent/20 hover:scale-105 active:scale-95 transition-all",
+                                isLoading && "opacity-50 cursor-not-allowed scale-100"
+                            )}
                         >
-                            Verify & Dispatch
+                            {isLoading ? 'Processing...' : 'Verify & Dispatch'}
                         </button>
                     </div>
                 </div>

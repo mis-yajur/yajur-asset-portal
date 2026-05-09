@@ -149,17 +149,35 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     });
 
     stockEntries.sort((a, b) => {
-      const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      
+      // Sort by date (ignoring time for consistent grouping)
+      dateA.setHours(0,0,0,0);
+      dateB.setHours(0,0,0,0);
+      
+      const dateDiff = dateA.getTime() - dateB.getTime();
       if (dateDiff !== 0) return dateDiff;
-      if (a.type?.includes('Target')) return -1;
-      if (b.type?.includes('Target')) return 1;
+      
+      // On same day, Target (Inward) comes first
+      if (a.type?.toLowerCase().includes('target') || a.type?.toLowerCase().includes('prepared')) return -1;
+      if (b.type?.toLowerCase().includes('target') || b.type?.toLowerCase().includes('prepared')) return 1;
+      
       return 0;
     });
     partyEntries.sort((a, b) => {
-      const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      
+      dateA.setHours(0,0,0,0);
+      dateB.setHours(0,0,0,0);
+      
+      const dateDiff = dateA.getTime() - dateB.getTime();
       if (dateDiff !== 0) return dateDiff;
+      
       if (a.isInitial) return -1;
       if (b.isInitial) return 1;
+      
       return 0;
     });
     
