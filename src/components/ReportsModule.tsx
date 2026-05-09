@@ -33,7 +33,11 @@ interface ReportsModuleProps {
 export default function ReportsModule({ onNotify, onLog }: ReportsModuleProps) {
   const [reportsData, setReportsData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [dateFrom, setDateFrom] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
+  
+  // Broader default range: Start from 1 year ago to ensure data is visible
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const [dateFrom, setDateFrom] = useState(oneYearAgo.toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [activeReport, setActiveReport] = useState<string | null>(null);
 
@@ -41,7 +45,9 @@ export default function ReportsModule({ onNotify, onLog }: ReportsModuleProps) {
     setIsLoading(true);
     try {
       const res = await apiCall('getReports', { startDate: dateFrom, endDate: dateTo });
-      if (res.success) setReportsData(res);
+      if (res.success) {
+        setReportsData(res.data);
+      }
     } catch (error) {
       onNotify('Error', 'Intelligence feed interrupted', 'error');
     } finally {

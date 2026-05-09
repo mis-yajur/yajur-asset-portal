@@ -436,11 +436,11 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                       <td className="px-5 py-4">
                         <span className={cn(
                           "px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-widest",
-                          item.STATUS === 'COMPLETE' || item.REMAINING_KG <= 100 ? "bg-teal-100 text-teal-700 shadow-sm border border-teal-200" : 
+                          item.REMAINING_KG <= 100 ? "bg-teal-100 text-teal-700 shadow-sm border border-teal-200" : 
                           item.STATUS === 'RUNNING' ? "bg-blue-100 text-blue-700" : 
                           "bg-amber-100 text-amber-700"
                         )}>
-                          {item.REMAINING_KG <= 100 ? 'COMPLETE' : item.STATUS}
+                          {item.REMAINING_KG <= 100 ? 'COMPLETE' : (item.STATUS === 'COMPLETE' ? 'RUNNING' : item.STATUS)}
                         </span>
                         {item.REMAINING_KG <= 100 && (
                           <div className="mt-1 text-[9px] font-black text-teal-600 uppercase tracking-tighter text-center">

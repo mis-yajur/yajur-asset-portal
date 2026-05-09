@@ -50,7 +50,9 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
         
         activeLifts.forEach((l: any) => {
           const bal = Number(l.TARGET_KG || 0) - Number(l.DELIVERED_KG || 0);
-          if (l.STATUS === 'COMPLETE' || bal <= 100) {
+          // STRICT FIX: Only archive if balance is <= 100.
+          // Do not trust the 'COMPLETE' status if balance is high.
+          if (bal <= 100) {
             allLifts.push(l);
           }
         });
