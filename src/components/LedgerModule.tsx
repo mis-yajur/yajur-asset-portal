@@ -58,41 +58,62 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     const piMap = new Map<string, any>();
     piData.forEach(pi => {
       const piKey = (pi.PI_NO || '').trim();
+      if (!piKey) return;
       piMap.set(piKey, pi);
 
-      // Find associated lifting target to use instead of full PI quantity if present
-      const lifting = liftingData.find(l => (l.PI_NO || '').trim() === piKey);
-      const targetQty = lifting ? Number(lifting.TARGET_KG) : Number(pi.QUANTITY_KG);
       const rate = Number(pi.RATE_PER_UNIT) || 0;
+      const lifts = liftingData.filter(l => (l.PI_NO || '').trim().toUpperCase() === piKey.toUpperCase());
 
       // Skip General Account / Internal accounts as requested
-      if (pi.CUSTOMER_NAME === 'GENERAL ACCOUNT') return;
+      const isGeneral = (name: string) => String(name || '').trim().toUpperCase() === 'GENERAL ACCOUNT';
 
-      // Stock Ledger Entry: Inward (Production)
+      if (lifts.length > 0) {
+        lifts.forEach(lift => {
+          if (isGeneral(lift.ACCOUNT)) return;
+          const targetQty = Number(lift.TARGET_KG) || 0;
+
+          // Party Ledger Entry (Split by account)
+          partyEntries.push({
+            date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
+            type: 'PI Target Lifting',
+            account: lift.ACCOUNT,
+            piNo: piKey,
+            qty: targetQty,
+            rate: rate,
+            debitAmt: 0,
+            creditAmt: 0,
+            isInitial: true,
+            remarks: `Target set for ${pi.PRODUCT_QUALITY}`
+          });
+        });
+      } else if (!isGeneral(pi.CUSTOMER_NAME)) {
+        const targetQty = Number(pi.QUANTITY_KG) || 0;
+        partyEntries.push({
+          date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
+          type: 'PI Target Lifting',
+          account: pi.CUSTOMER_NAME,
+          piNo: piKey,
+          qty: targetQty,
+          rate: rate,
+          debitAmt: 0,
+          creditAmt: 0,
+          isInitial: true,
+          remarks: `Target set for ${pi.PRODUCT_QUALITY}`
+        });
+      }
+
+      // Stock Ledger Entry: Inward (Production) - Use PI total as base
+      const totalPiQty = Number(pi.QUANTITY_KG) || 0;
       stockEntries.push({
         date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
         type: 'Stock Prepared',
         account: pi.CUSTOMER_NAME || 'Factory / Master',
         piNo: piKey,
-        qtyIn: targetQty,
+        qtyIn: totalPiQty,
         qtyOut: 0,
         rate: rate,
         amount: 0,
         remarks: `PI Created: ${pi.PRODUCT_QUALITY || ''}`
-      });
-
-      // Party Ledger Entry: Initial Target (Informational)
-      partyEntries.push({
-        date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
-        type: 'PI Target Lifting',
-        account: pi.CUSTOMER_NAME,
-        piNo: piKey,
-        qty: targetQty,
-        rate: rate,
-        debitAmt: 0,
-        creditAmt: 0,
-        isInitial: true,
-        remarks: `Target set for ${pi.PRODUCT_QUALITY}`
       });
     });
 
@@ -466,7 +487,7 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                     {activeTab === 'party' && (
                        <div className="px-3 py-1 bg-white border border-border-main rounded text-xs font-bold text-text-dim uppercase">
                           Current Outstanding: <span className="text-red-500 font-black ml-1">
-                             ₹{items.find(i => i.isSummary)?.balanceAmt?.toLocaleString(undefined, {minimumFractionDigits: 2}) || 0}
+                             ₹{Math.abs(items.find(i => i.isSummary)?.balanceAmt || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
                           </span>
                        </div>
                     )}
@@ -535,11 +556,11 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                                   {entry.debitAmt > 0 ? <div className="text-red-500 font-bold">₹{entry.debitAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</div> : '₹0.00'}
                                 </td>
                                 <td className="p-4 text-right text-primary-main font-black">
-                                  ₹{entry.balanceAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                  ₹{Math.abs(entry.balanceAmt).toLocaleString(undefined, {minimumFractionDigits: 2})}
                                 </td>
                                 <td className="p-4 text-right">
                                   <span className="bg-indigo-600 text-white px-3 py-1 rounded-lg font-black text-xs uppercase tracking-tighter">
-                                    {entry.balanceQty.toLocaleString()} kg
+                                    {Math.abs(entry.balanceQty).toLocaleString()} kg
                                   </span>
                                 </td>
                               </>
