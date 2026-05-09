@@ -44,64 +44,21 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
         const activePis = activePiRes.success ? (activePiRes.data || []) : [];
         const activeLifts = activeLiftRes.success ? (activeLiftRes.data || []) : [];
 
-        // Combine both archived and active-completed PIs
-        const allPis = [...archivedPis];
-        const allLifts = [...archivedLifts, ...activeLifts];
-
-        // Also add active PIs that are complete or status is COMPLETE
-        activePis.forEach((p: PI) => {
-          const piRef = String(p.PI_NO || '').trim().toUpperCase();
-          const liftsForPi = activeLifts.filter((l: any) => 
-            String(l.PI_NO || '').trim().toUpperCase() === piRef
-          );
-          
-          const totalBal = liftsForPi.reduce((acc: number, l: any) => 
-            acc + (Number(l.TARGET_KG || 0) - Number(l.DELIVERED_KG || 0)), 0
-          );
-
-          if (p.STATUS === 'COMPLETE' || (totalBal >= 0 && totalBal <= 100 && liftsForPi.length > 0)) {
-            // Avoid duplicates if it's somehow in both
-            if (!allPis.find(ap => ap.PI_NO === p.PI_NO)) {
-               allPis.push(p);
-            }
+        // Combine all lifting data that is considered complete or archived
+        // This includes anything in the archive sheet plus anything in active sheet with <= 100kg balance
+        const allLifts: any[] = [...archivedLifts];
+        
+        activeLifts.forEach((l: any) => {
+          const bal = Number(l.TARGET_KG || 0) - Number(l.DELIVERED_KG || 0);
+          if (l.STATUS === 'COMPLETE' || bal <= 100) {
+            allLifts.push(l);
           }
         });
-        
-        // Match PI with its lifting entries
-        const matchedPIs = allPis.map((pi: PI) => {
-          const piRef = String(pi.PI_NO || '').trim().toUpperCase();
-          const piLifts = allLifts.filter((l: any) => 
-            String(l.PI_NO || '').trim().toUpperCase() === piRef
-          );
-          
-          const totalBal = piLifts.reduce((acc: number, l: any) => 
-            acc + (Number(l.TARGET_KG || 0) - Number(l.DELIVERED_KG || 0)), 0
-          );
-          
-          // Full completion is 0 or less balance
-          // Partial complete is specifically 1 to 100 kg balance
-          const completionType = totalBal <= 0 ? 'full' : 'partial';
-          
-          return {
-            ...pi,
-            liftingEntries: piLifts,
-            completionType: completionType
-          };
-        });
-        
-        setCompletePIs(matchedPIs);
-        setLiftingData(lifts);
 
-        // Auto-select tab with data
-        if (matchedPIs.length > 0) {
-          const hasFull = matchedPIs.some(p => p.completionType === 'full');
-          const hasPartial = matchedPIs.some(p => p.completionType === 'partial');
-          if (!hasFull && hasPartial) {
-            setActiveTab('partial');
-          } else if (hasFull) {
-            setActiveTab('full');
-          }
-        }
+        // Deduplicate by LIFTING_ID (or equivalent unique ref)
+        const uniqueLifts = Array.from(new Map(allLifts.map(item => [item.LIFTING_ID || `${item.PI_NO}-${item.ACCOUNT}`, item])).values());
+        
+        setLiftingData(uniqueLifts);
       }
     } catch (error) {
       onNotify('Error', 'Archive data fetch failed', 'error');
@@ -114,95 +71,15 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
     loadData();
   }, []);
 
-  const filteredPIs = useMemo(() => {
-    return completePIs.filter(pi => {
-      const matchesSearch = 
-        pi.PI_NO.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        pi.CUSTOMER_NAME.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesTab = pi.completionType === activeTab;
-      
-      return matchesSearch && matchesTab;
+  const filteredLifts = useMemo(() => {
+    return liftingData.filter(l => {
+      const searchStr = `${l.LIFTING_ID} ${l.ACCOUNT} ${l.PI_NO}`.toLowerCase();
+      return searchStr.includes(searchTerm.toLowerCase());
     });
-  }, [completePIs, searchTerm, activeTab]);
-
-  const stats = useMemo(() => {
-    return {
-      full: completePIs.filter(p => p.completionType === 'full').length,
-      partial: completePIs.filter(p => p.completionType === 'partial').length
-    };
-  }, [completePIs]);
+  }, [liftingData, searchTerm]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex justify-end mb-2">
-        <button 
-          onClick={loadData}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg"
-          disabled={isLoading}
-        >
-          <History size={14} className={cn(isLoading && "animate-spin")} />
-          {isLoading ? 'Syncing...' : 'Refresh Archive'}
-        </button>
-      </div>
-
-      {/* Stats and Tabs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button 
-          onClick={() => setActiveTab('full')}
-          className={cn(
-            "p-6 rounded-[2rem] border transition-all text-left flex items-center justify-between group",
-            activeTab === 'full' 
-              ? "bg-teal-500 border-teal-600 shadow-xl shadow-teal-500/20 text-white" 
-              : "bg-white border-slate-200 text-slate-600 hover:border-teal-200"
-          )}
-        >
-          <div className="flex items-center gap-4">
-            <div className={cn(
-              "w-12 h-12 rounded-2xl flex items-center justify-center transition-colors",
-              activeTab === 'full' ? "bg-white/20" : "bg-teal-50 text-teal-600"
-            )}>
-              <FileCheck size={24} />
-            </div>
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest">Fully Fulfilled</h3>
-              <p className={cn(
-                "text-[10px] font-bold uppercase tracking-wider mt-0.5",
-                activeTab === 'full' ? "text-white/70" : "text-slate-400"
-              )}>Absolute Zero Balance Entries</p>
-            </div>
-          </div>
-          <div className="text-2xl font-black">{stats.full}</div>
-        </button>
-
-        <button 
-          onClick={() => setActiveTab('partial')}
-          className={cn(
-            "p-6 rounded-[2rem] border transition-all text-left flex items-center justify-between group",
-            activeTab === 'partial' 
-              ? "bg-amber-500 border-amber-600 shadow-xl shadow-amber-500/20 text-white" 
-              : "bg-white border-slate-200 text-slate-600 hover:border-amber-200"
-          )}
-        >
-          <div className="flex items-center gap-4">
-            <div className={cn(
-              "w-12 h-12 rounded-2xl flex items-center justify-center transition-colors",
-              activeTab === 'partial' ? "bg-white/20" : "bg-amber-50 text-amber-600"
-            )}>
-              <ClipboardCheck size={24} />
-            </div>
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest">Partial Complete</h3>
-              <p className={cn(
-                "text-[10px] font-bold uppercase tracking-wider mt-0.5",
-                activeTab === 'partial' ? "text-white/70" : "text-slate-400"
-              )}>Threshold Fulfill (&#60;= 100kg)</p>
-            </div>
-          </div>
-          <div className="text-2xl font-black">{stats.partial}</div>
-        </button>
-      </div>
-
       {/* List Container */}
       <div className="bg-surface-card rounded-[2.5rem] border border-border-main p-8 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -211,8 +88,8 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
                 <History size={20} />
              </div>
              <div>
-                <h3 className="text-lg font-black text-primary uppercase tracking-tight">Resolution Matrix</h3>
-                <p className="text-xs text-text-dim font-bold uppercase tracking-widest">Archived Operational Sign-offs</p>
+                <h3 className="text-lg font-black text-primary uppercase tracking-tight">Archive Repository</h3>
+                <p className="text-xs text-text-dim font-bold uppercase tracking-widest">Master Operational Sign-offs</p>
              </div>
           </div>
 
@@ -233,80 +110,72 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
           </div>
         </div>
 
-        <div className="space-y-4">
-          {isLoading ? (
-            [1, 2, 3].map(i => (
-              <div key={i} className="h-24 bg-slate-50 animate-pulse rounded-2xl" />
-            ))
-          ) : filteredPIs.length > 0 ? (
-            filteredPIs.map(pi => (
-              <div key={pi.PI_NO} className="group p-5 bg-white border border-slate-100 rounded-2xl hover:border-accent/30 hover:shadow-lg transition-all">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-black text-accent tracking-[0.2em]">{pi.PI_NO}</span>
-                      <span className="w-1 h-1 rounded-full bg-slate-300" />
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">{formatDate(pi.INVOICE_DATE)}</span>
-                    </div>
-                    <h4 className="text-lg font-black text-primary uppercase leading-tight">{pi.CUSTOMER_NAME}</h4>
-                    <div className="flex items-center gap-3 mt-2">
-                       <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded-lg">
-                          <Package size={12} className="text-slate-400" />
-                          <span className="text-[10px] font-bold text-slate-600 uppercase">{pi.PRODUCT_QUALITY}</span>
-                       </div>
-                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                          Quantum: <span className="text-slate-900 font-black">{pi.QUANTITY_KG.toLocaleString()} KG</span>
-                       </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center lg:justify-end gap-6 border-t lg:border-t-0 lg:border-l border-slate-100 pt-4 lg:pt-0 lg:pl-6">
-                    <div className="text-right">
-                       <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Distributed in</div>
-                       <div className="text-sm font-black text-slate-900">{pi.liftingEntries?.length || 0} SECTIONS</div>
-                    </div>
-                    <div className={cn(
-                      "px-4 py-2 rounded-xl border flex items-center gap-2",
-                      pi.completionType === 'full' 
-                        ? "bg-teal-50 border-teal-100 text-teal-600" 
-                        : "bg-amber-50 border-amber-100 text-amber-600"
-                    )}>
-                      {pi.completionType === 'full' ? <CheckCircle2 size={16} /> : <Activity size={16} />}
-                      <span className="text-[11px] font-black uppercase tracking-tight">
-                        {pi.completionType === 'full' ? 'COMPLETE' : 'PARTIAL COMPLETE'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sub-entries if expanded or visible */}
-                <div className="mt-4 pt-4 border-t border-slate-50 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {pi.liftingEntries.map((l: any, idx: number) => {
-                    const bal = Number(l.TARGET_KG) - Number(l.DELIVERED_KG);
-                    return (
-                      <div key={idx} className="p-3 bg-slate-50/50 rounded-xl border border-slate-50 flex items-center justify-between">
-                         <div>
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter truncate max-w-[150px]">{l.ACCOUNT}</div>
-                            <div className="text-[11px] font-bold text-slate-600">{Number(l.DELIVERED_KG).toLocaleString()} / {Number(l.TARGET_KG).toLocaleString()} KG</div>
-                         </div>
-                         <div className={cn(
-                           "text-[10px] font-black px-2 py-1 rounded-lg uppercase",
-                           bal <= 0 ? "bg-teal-100 text-teal-700" : "bg-amber-100 text-amber-700"
-                         )}>
-                           {bal <= 0 ? '0 BAL' : `${bal}kg BAL`}
-                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="py-20 text-center flex flex-col items-center justify-center opacity-30">
-               <History size={64} className="mb-4" />
-               <p className="font-black uppercase tracking-[0.3em] text-xs">No Records Found in Archive Matrix</p>
-            </div>
-          )}
+        <div className="overflow-x-auto overflow-y-visible">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Lifting ID</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Account</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">PI No</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Target</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Delivered</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Balance</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Last Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {isLoading ? (
+                [1, 2, 3, 4, 5].map(i => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={8} className="px-4 py-4 h-12 bg-slate-50/50 rounded-lg"></td>
+                  </tr>
+                ))
+              ) : filteredLifts.length > 0 ? (
+                filteredLifts.map((l, idx) => {
+                  const target = Number(l.TARGET_KG || 0);
+                  const delivered = Number(l.DELIVERED_KG || 0);
+                  const remaining = Math.max(0, target - delivered);
+                  
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/50 group transition-all">
+                      <td className="px-4 py-4 text-[11px] font-bold text-accent font-mono">{l.LIFTING_ID}</td>
+                      <td className="px-4 py-4">
+                        <div className="text-[11px] font-black text-primary uppercase">{l.ACCOUNT}</div>
+                        <div className="text-[9px] text-slate-400 uppercase">{l.CONTACT}</div>
+                      </td>
+                      <td className="px-4 py-4 text-[11px] font-black text-primary">{l.PI_NO}</td>
+                      <td className="px-4 py-4 text-right text-[11px] font-bold text-slate-600">{target.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-right text-[11px] font-bold text-teal-600">{delivered.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-right">
+                        <span className={cn(
+                          "text-[11px] font-black px-2 py-0.5 rounded-lg",
+                          remaining <= 0 ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-700"
+                        )}>
+                          {remaining <= 0 ? '0' : remaining.toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className="text-[10px] font-black text-teal-700 uppercase tracking-widest bg-teal-50 px-2 py-1 rounded-full border border-teal-100">
+                          {l.STATUS || 'COMPLETE'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right text-[10px] font-bold text-slate-400">
+                        {formatDate(l.LAST_DELIVERY_DATE)}
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={8} className="py-20 text-center opacity-30">
+                     <History size={48} className="mx-auto mb-4" />
+                     <p className="font-black uppercase tracking-[0.3em] text-[10px]">No Archived Records Found</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
