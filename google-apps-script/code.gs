@@ -290,32 +290,52 @@ function archivePI(piNo) {
     throw new Error('PI not found in active list: ' + targetPiNo);
   }
 
-  // 1. Copy PI to Archive
-  const arcPiHeaders = arcPiSheet.getRange(1, 1, 1, arcPiSheet.getLastColumn()).getValues()[0];
-  const newArcPiRow = arcPiHeaders.map(h => {
-    if (h === 'ARCHIVED_AT') return archiveTime;
-    const idx = piHeaders.indexOf(h);
-    return idx !== -1 ? piRowToArchive[idx] : "";
-  });
-  arcPiSheet.appendRow(newArcPiRow);
-  console.log('PI header archived');
+  // 1. Check if PI is already archived to prevent duplicates
+  const arcPiData = arcPiSheet.getDataRange().getValues();
+  const arcPiHeaders = arcPiData[0];
+  const arcPiNoIdx = arcPiHeaders.indexOf('PI_NO');
+  let alreadyArchivedPi = false;
+  for (let i = 1; i < arcPiData.length; i++) {
+    if (String(arcPiData[i][arcPiNoIdx]).trim().toUpperCase() === targetPiNo) {
+      alreadyArchivedPi = true;
+      break;
+    }
+  }
+
+  if (!alreadyArchivedPi) {
+    const newArcPiRow = arcPiHeaders.map(h => {
+      if (h === 'ARCHIVED_AT') return archiveTime;
+      const idx = piHeaders.indexOf(h);
+      return idx !== -1 ? piRowToArchive[idx] : "";
+    });
+    arcPiSheet.appendRow(newArcPiRow);
+    console.log('PI header archived');
+  } else {
+    console.log('PI header already in archive, skipping append');
+  }
 
   // 2. Archive associated Lifting data
   const liftDataValues = liftSheet.getDataRange().getValues();
   const liftHeaders = liftDataValues[0];
   const liftPiIdx = liftHeaders.indexOf('PI_NO');
-  const arcLiftHeaders = arcLiftSheet.getRange(1, 1, 1, arcLiftSheet.getLastColumn()).getValues()[0];
+  const arcLiftData = arcLiftSheet.getDataRange().getValues();
+  const arcLiftHeaders = arcLiftData[0];
+  const arcLiftIdIdx = arcLiftHeaders.indexOf('LIFTING_ID');
+  const existingArcLiftIds = new Set(arcLiftData.slice(1).map(r => String(r[arcLiftIdIdx]).trim().toUpperCase()));
 
   const rowsToRemove = [];
   for (let i = 1; i < liftDataValues.length; i++) {
     const currentLiftPiNo = String(liftDataValues[i][liftPiIdx]).trim().toUpperCase();
     if (currentLiftPiNo === targetPiNo) {
-      const arcLiftRow = arcLiftHeaders.map(h => {
-        if (h === 'ARCHIVED_AT') return archiveTime;
-        const idx = liftHeaders.indexOf(h);
-        return idx !== -1 ? liftDataValues[i][idx] : "";
-      });
-      arcLiftSheet.appendRow(arcLiftRow);
+      const liftId = String(liftDataValues[i][liftHeaders.indexOf('LIFTING_ID')]).trim().toUpperCase();
+      if (!existingArcLiftIds.has(liftId)) {
+        const arcLiftRow = arcLiftHeaders.map(h => {
+          if (h === 'ARCHIVED_AT') return archiveTime;
+          const idx = liftHeaders.indexOf(h);
+          return idx !== -1 ? liftDataValues[i][idx] : "";
+        });
+        arcLiftSheet.appendRow(arcLiftRow);
+      }
       rowsToRemove.push(i + 1);
     }
   }
@@ -417,9 +437,10 @@ function getReports(startDate, endDate) {
     return isNaN(d.getTime()) ? null : d;
   }
 
-  const start = startDate ? new Date(startDate) : new Date(0);
-  const end = endDate ? new Date(endDate) : new Date();
+  const start = parseDate(startDate) || new Date(0);
+  const end = parseDate(endDate) || new Date();
   end.setHours(23, 59, 59, 999);
+  start.setHours(0, 0, 0, 0);
 
   const activePis = getData('pi_data');
   const activeLifts = getData('lifting_data');

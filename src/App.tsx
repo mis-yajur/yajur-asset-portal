@@ -257,7 +257,7 @@ export default function App() {
                 {toast.type === 'success' ? <Activity size={20} /> : <AlertCircle size={20} />}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">System Alert</div>
+                <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Status Notification</div>
                 <div className="text-sm font-black text-slate-900 mb-0.5">{toast.title}</div>
                 <div className="text-xs font-bold text-slate-500 line-clamp-2">{toast.message}</div>
               </div>
@@ -699,16 +699,27 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
           apiCall('getArchiveLifting')
         ]);
         
-        if (piRes.success && liftRes.success) {
-          const activePis = piRes.data || [];
-          const activeLifts = liftRes.data || [];
-          const arcPis = arcPiRes.success ? (arcPiRes.data || []) : [];
-          const arcLifts = arcLiftRes.success ? (arcLiftRes.data || []) : [];
+          if (piRes.success && liftRes.success) {
+            const activePis = piRes.data || [];
+            const activeLifts = liftRes.data || [];
+            const arcPis = arcPiRes.success ? (arcPiRes.data || []) : [];
+            const arcLifts = arcLiftRes.success ? (arcLiftRes.data || []) : [];
 
-          const pis = [...activePis, ...arcPis];
-          const lifts = [...activeLifts, ...arcLifts];
-          
-          let totalDelivered = 0;
+            // Deduplicate PIs by PI_NO
+            const piMap = new Map<string, any>();
+            [...arcPis, ...activePis].forEach((p: any) => {
+              if (p.PI_NO) piMap.set(String(p.PI_NO).trim().toUpperCase(), p);
+            });
+            const pis = Array.from(piMap.values());
+            
+            // Deduplicate Liftings by LIFTING_ID
+            const liftMap = new Map<string, any>();
+            [...arcLifts, ...activeLifts].forEach((l: any) => {
+              if (l.LIFTING_ID) liftMap.set(String(l.LIFTING_ID).trim().toUpperCase(), l);
+            });
+            const lifts = Array.from(liftMap.values());
+            
+            let totalDelivered = 0;
           const pendingDict: Record<string, { pending: number; target: number; delivered: number }> = {};
           const monthDict: Record<string, { delivered: number; target: number; pending: number }> = {};
           const yearDict: Record<string, { delivered: number; target: number; pending: number }> = {};
@@ -794,8 +805,6 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
              pendingPIs: { data: pis.filter((p:any) => p.STATUS !== 'COMPLETE') },
              piSummary: { data: pis, statusReport: piStatusReport }
           });
-          
-          onNotify("System Synced", "All operational data updated with live production feed.", "success");
           
           if (totalPending > 50000) {
             setTimeout(() => {

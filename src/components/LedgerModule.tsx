@@ -27,10 +27,20 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
           apiCall('getArchiveLifting')
         ]);
         
-        const allPis = [...(piRes.data || []), ...(arcPiRes.data || [])];
-        const allLifts = [...(liftRes.data || []), ...(arcLiftRes.data || [])];
-
+        // Deduplicate PIs by PI_NO (prefer active over archive if both exist)
+        const piMap = new Map<string, any>();
+        [...(arcPiRes.data || []), ...(piRes.data || [])].forEach((p: any) => {
+          if (p.PI_NO) piMap.set(String(p.PI_NO).trim().toUpperCase(), p);
+        });
+        const allPis = Array.from(piMap.values());
         setPiData(allPis);
+        
+        // Deduplicate Liftings by LIFTING_ID
+        const liftMap = new Map<string, any>();
+        [...(arcLiftRes.data || []), ...(liftRes.data || [])].forEach((l: any) => {
+          if (l.LIFTING_ID) liftMap.set(String(l.LIFTING_ID).trim().toUpperCase(), l);
+        });
+        const allLifts = Array.from(liftMap.values());
         
         const parsedData = allLifts.map((item: any) => {
           let historyStr = item.HISTORY || item.history || item.History || item.DELIVERY_HISTORY || item.NOTES;

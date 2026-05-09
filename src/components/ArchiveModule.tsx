@@ -38,30 +38,14 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
         apiCall('getLiftingData')
       ]);
       
-      if (piRes.success && liftRes.success) {
-        const archivedPis = piRes.data || [];
-        const archivedLifts = liftRes.data || [];
-        const activePis = activePiRes.success ? (activePiRes.data || []) : [];
-        const activeLifts = activeLiftRes.success ? (activeLiftRes.data || []) : [];
+        if (piRes.success && liftRes.success) {
+          const archivedLifts = liftRes.data || [];
 
-        // Combine all lifting data that is considered complete or archived
-        // This includes anything in the archive sheet plus anything in active sheet with <= 100kg balance
-        const allLifts: any[] = [...archivedLifts];
-        
-        activeLifts.forEach((l: any) => {
-          const bal = Number(l.TARGET_KG || 0) - Number(l.DELIVERED_KG || 0);
-          // STRICT FIX: Only archive if balance is <= 100.
-          // Do not trust the 'COMPLETE' status if balance is high.
-          if (bal <= 100) {
-            allLifts.push(l);
-          }
-        });
-
-        // Deduplicate by LIFTING_ID (or equivalent unique ref)
-        const uniqueLifts = Array.from(new Map(allLifts.map(item => [item.LIFTING_ID || `${item.PI_NO}-${item.ACCOUNT}`, item])).values());
-        
-        setLiftingData(uniqueLifts);
-      }
+          // Deduplicate by LIFTING_ID (or equivalent unique ref)
+          const uniqueLifts = Array.from(new Map(archivedLifts.map((item: any) => [item.LIFTING_ID || `${item.PI_NO}-${item.ACCOUNT}`, item])).values());
+          
+          setLiftingData(uniqueLifts);
+        }
     } catch (error) {
       onNotify('Error', 'Archive data fetch failed', 'error');
     } finally {
