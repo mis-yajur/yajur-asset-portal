@@ -46,14 +46,19 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
           const piLifts = lifts.filter((l: any) => 
             String(l.PI_NO || '').trim().toUpperCase() === piRef
           );
-          const isFull = piLifts.length > 0 
-            ? piLifts.every((l: any) => (Number(l.TARGET_KG || 0) - Number(l.DELIVERED_KG || 0)) <= 0)
-            : (pi.STATUS === 'COMPLETE');
+          
+          const totalBal = piLifts.reduce((acc: number, l: any) => 
+            acc + (Number(l.TARGET_KG || 0) - Number(l.DELIVERED_KG || 0)), 0
+          );
+          
+          // Full completion is 0 or less balance
+          // Partial complete is specifically 1 to 100 kg balance
+          const completionType = totalBal <= 0 ? 'full' : 'partial';
           
           return {
             ...pi,
             liftingEntries: piLifts,
-            completionType: isFull ? 'full' : 'partial'
+            completionType: completionType
           };
         });
         
@@ -230,7 +235,7 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
                     )}>
                       {pi.completionType === 'full' ? <CheckCircle2 size={16} /> : <Activity size={16} />}
                       <span className="text-[11px] font-black uppercase tracking-tight">
-                        {pi.completionType === 'full' ? 'FUllY CLOSED' : 'PARTIAL CLOSED'}
+                        {pi.completionType === 'full' ? 'COMPLETE' : 'PARTIAL COMPLETE'}
                       </span>
                     </div>
                   </div>

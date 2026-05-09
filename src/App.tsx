@@ -274,7 +274,7 @@ export default function App() {
             <div>
               <div className="text-xs text-slate-400 font-bold uppercase tracking-widest">Yajur Lifting / Portal</div>
               <h2 className="text-2xl font-black text-primary uppercase lg:text-3xl tracking-tight mt-1">
-                {currentPage === 'dashboard' ? 'Operational Dashboard' : `${currentPage.replace('-', ' ')} Module`}
+                {currentPage === 'dashboard' ? 'Insight Dashboard' : `${currentPage.replace('-', ' ')} Module`}
               </h2>
             </div>
             <div className="hidden sm:flex items-center gap-3">
@@ -371,7 +371,7 @@ function Header({
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-    { id: 'lifting', label: 'Operations', icon: <Truck size={18} /> },
+    { id: 'lifting', label: 'Lifting', icon: <Truck size={18} /> },
     { id: 'archive', label: 'Archive', icon: <History size={18} /> },
     { id: 'ledger', label: 'Ledger', icon: <FileText size={18} /> },
     { id: 'pi', label: 'Proforma', icon: <FileText size={18} /> },
@@ -1328,7 +1328,6 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
                         <tr className="bg-slate-50 border-b border-slate-100">
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">PI NO</th>
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
-                          <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Operation</th>
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Quality</th>
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Target (kg)</th>
                           <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
@@ -1339,10 +1338,6 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
                            <tr key={idx} className="hover:bg-slate-50/50">
                              <td className="px-4 py-3 text-primary font-black">{item.PI_NO}</td>
                              <td className="px-4 py-3 uppercase">{item.CUSTOMER_NAME}</td>
-                             <td className="px-4 py-3 italic text-slate-400">
-                                {/* Operation is empty for PIs in matrix as requested */}
-                                {""}
-                             </td>
                              <td className="px-4 py-3">{item.PRODUCT_QUALITY}</td>
                              <td className="px-4 py-3 text-right">{item.QUANTITY_KG?.toLocaleString()}</td>
                              <td className="px-4 py-3 text-center">
