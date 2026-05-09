@@ -1,4 +1,13 @@
-const API_URL = import.meta.env.VITE_API_URL || 'https://script.google.com/macros/s/AKfycbytnxq-ShRWabByhO6fhxLtZeGTiMxduup42ADdIdLSsp0uPNszGut9HIaG5h-guNUD/exec';
+let API_URL = localStorage.getItem('LIFTING_API_URL') || import.meta.env.VITE_API_URL || 'https://script.google.com/macros/s/AKfycbytnxq-ShRWabByhO6fhxLtZeGTiMxduup42ADdIdLSsp0uPNszGut9HIaG5h-guNUD/exec';
+
+export function setApiUrl(url: string) {
+  API_URL = url;
+  localStorage.setItem('LIFTING_API_URL', url);
+}
+
+export function getApiUrl() {
+  return API_URL;
+}
 
 export async function apiCall(action: string, params: any = {}) {
   console.log(`[API] Invoking action: ${action}`, params);

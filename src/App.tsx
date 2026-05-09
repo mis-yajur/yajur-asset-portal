@@ -41,7 +41,7 @@ import {
 import { Bar } from 'react-chartjs-2';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatDate } from './lib/utils';
-import { apiCall } from './services/api';
+import { apiCall, getApiUrl, setApiUrl } from './services/api';
 import type { Page, User, ThemeSettings, FontStyle, Notification, AuditLogEntry } from './types';
 
 // Modules
@@ -1837,6 +1837,15 @@ interface SettingsPageProps {
 }
 
 function SettingsPage({ theme, onThemeChange }: SettingsPageProps) {
+  const [apiUrl, setLocalApiUrl] = useState(getApiUrl());
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+
+  const handleUrlSave = () => {
+    setApiUrl(apiUrl);
+    setSaveStatus('saved');
+    setTimeout(() => setSaveStatus('idle'), 2000);
+  };
+
   const fonts: { id: FontStyle; label: string }[] = [
     { id: 'sans', label: 'Inter (Modern Sans)' },
     { id: 'serif', label: 'Playfair (Elegant Serif)' },
@@ -1857,6 +1866,44 @@ function SettingsPage({ theme, onThemeChange }: SettingsPageProps) {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* API Configuration */}
+      <div className="bg-surface-card rounded-custom border border-border-main p-8 shadow-sm">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-600">
+            <TrendingUp size={20} />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-primary uppercase tracking-tight">System Connectivity</h3>
+            <p className="text-xs text-text-dim font-bold uppercase tracking-widest">Connect to Google Apps Script Backend</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Web App Deployment URL</label>
+          <div className="flex gap-4">
+            <input 
+              type="text" 
+              value={apiUrl}
+              onChange={e => setLocalApiUrl(e.target.value)}
+              placeholder="https://script.google.com/macros/s/.../exec"
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black outline-none focus:border-accent/40"
+            />
+            <button 
+              onClick={handleUrlSave}
+              className={cn(
+                "px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg",
+                saveStatus === 'saved' ? "bg-teal-600 text-white shadow-teal-600/20" : "bg-primary text-white shadow-primary/20 hover:scale-[1.02]"
+              )}
+            >
+              {saveStatus === 'saved' ? 'Endpoint Updated' : 'Sync Endpoint'}
+            </button>
+          </div>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">
+            Note: Changes will take effect immediately. Ensure your Apps Script is deployed as a Web App with access set to "Anyone".
+          </p>
+        </div>
+      </div>
+
       <div className="bg-surface-card rounded-custom border border-border-main p-8 shadow-sm">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
