@@ -34,10 +34,12 @@ function doPost(e) {
       case 'deletePI': result = deleteRow('pi_data', 'PI_NO', params.PI_NO); break;
       
       case 'addCustomer': result = addRow('customer_master', params); break;
+      case 'bulkUploadCustomers': result = bulkUpload('customer_master', params.customers); break;
       case 'updateCustomer': result = updateRow('customer_master', 'PARTY_CODE', params); break;
       case 'deleteCustomer': result = deleteRow('customer_master', 'PARTY_CODE', params.PARTY_CODE); break;
       
       case 'addProduct': result = addRow('product_master', params); break;
+      case 'bulkUploadProducts': result = bulkUpload('product_master', params.products); break;
       case 'updateProduct': result = updateRow('product_master', 'QLTY_CODE', params); break;
       case 'deleteProduct': result = deleteRow('product_master', 'QLTY_CODE', params.QLTY_CODE); break;
 
@@ -138,6 +140,19 @@ function addRow(sheetName, params) {
   const newRow = headers.map(h => params[h] || "");
   sheet.appendRow(newRow);
   return { success: true };
+}
+
+function bulkUpload(sheetName, rows) {
+  if (!rows || !rows.length) return { success: true, count: 0 };
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  
+  const dataToAppend = rows.map(params => {
+    return headers.map(h => params[h] || "");
+  });
+  
+  sheet.getRange(sheet.getLastRow() + 1, 1, dataToAppend.length, headers.length).setValues(dataToAppend);
+  return { success: true, count: dataToAppend.length };
 }
 
 function updateRow(sheetName, idKey, params) {

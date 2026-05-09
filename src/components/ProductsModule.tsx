@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import Papa from 'papaparse';
 import { apiCall } from '../services/api';
 import { cn, formatDate } from '../lib/utils';
 import type { Product, Notification } from '../types';
@@ -114,36 +115,34 @@ export default function ProductsModule({ onNotify, onLog }: ProductsModuleProps)
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-        const text = event.target?.result as string;
-        const lines = text.split('\n');
-        const headers = lines[0].split(',');
-        
-        const data = lines.slice(1).filter(l => l.trim()).map(line => {
-            const values = line.split(',');
-            const obj: any = {};
-            headers.forEach((h, i) => {
-                obj[h.trim()] = values[i]?.trim();
-            });
-            return obj;
-        });
-
-        setIsLoading(true);
-        try {
-            const res = await apiCall('bulkUploadProducts', { products: data });
-            if (res.success) {
-                onNotify('Bulk Success', `${data.length} specs synchronized`, 'success');
-                onLog('Bulk Upload Products', `Count: ${data.length}`);
-                await loadData();
-            } else {
-                onNotify('Bulk Error', res.error || 'Batch sync failed', 'error');
+    Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+            const data = results.data;
+            if (!data || data.length === 0) {
+                onNotify('Error', 'Empty CSV file detected', 'error');
+                return;
             }
-        } finally {
-            setIsLoading(false);
+
+            setIsLoading(true);
+            try {
+                const res = await apiCall('bulkUploadProducts', { products: data });
+                if (res.success) {
+                    onNotify('Bulk Success', `${data.length} specs synchronized`, 'success');
+                    onLog('Bulk Upload Products', `Count: ${data.length}`);
+                    await loadData();
+                } else {
+                    onNotify('Bulk Error', res.error || 'Batch sync failed', 'error');
+                }
+            } finally {
+                setIsLoading(false);
+            }
+        },
+        error: (error) => {
+            onNotify('Parse Error', error.message, 'error');
         }
-    };
-    reader.readAsText(file);
+    });
   };
 
   return (

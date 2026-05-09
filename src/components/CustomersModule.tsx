@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import Papa from 'papaparse';
 import { apiCall } from '../services/api';
 import { cn } from '../lib/utils';
 import type { Customer, Notification } from '../types';
@@ -118,36 +119,34 @@ export default function CustomersModule({ onNotify, onLog }: CustomersModuleProp
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-        const text = event.target?.result as string;
-        const lines = text.split('\n');
-        const headers = lines[0].split(',');
-        
-        const data = lines.slice(1).filter(l => l.trim()).map(line => {
-            const values = line.split(',');
-            const obj: any = {};
-            headers.forEach((h, i) => {
-                obj[h.trim()] = values[i]?.trim();
-            });
-            return obj;
-        });
-
-        setIsLoading(true);
-        try {
-            const res = await apiCall('bulkUploadCustomers', { customers: data });
-            if (res.success) {
-                onNotify('Bulk Success', `${data.length} identities mapped`, 'success');
-                onLog('Bulk Upload', `Count: ${data.length} customers`);
-                await loadData();
-            } else {
-                onNotify('Bulk Error', res.error || 'Batch processing failed', 'error');
+    Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+            const data = results.data;
+            if (!data || data.length === 0) {
+                onNotify('Error', 'Empty CSV file detected', 'error');
+                return;
             }
-        } finally {
-            setIsLoading(false);
+
+            setIsLoading(true);
+            try {
+                const res = await apiCall('bulkUploadCustomers', { customers: data });
+                if (res.success) {
+                    onNotify('Bulk Success', `${data.length} identities mapped`, 'success');
+                    onLog('Bulk Upload', `Count: ${data.length} customers`);
+                    await loadData();
+                } else {
+                    onNotify('Bulk Error', res.error || 'Batch processing failed', 'error');
+                }
+            } finally {
+                setIsLoading(false);
+            }
+        },
+        error: (error) => {
+            onNotify('Parse Error', error.message, 'error');
         }
-    };
-    reader.readAsText(file);
+    });
   };
 
   return (
