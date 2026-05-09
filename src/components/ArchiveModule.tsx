@@ -64,6 +64,17 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
         
         setCompletePIs(matchedPIs);
         setLiftingData(lifts);
+
+        // Auto-select tab with data
+        if (matchedPIs.length > 0) {
+          const hasFull = matchedPIs.some(p => p.completionType === 'full');
+          const hasPartial = matchedPIs.some(p => p.completionType === 'partial');
+          if (!hasFull && hasPartial) {
+            setActiveTab('partial');
+          } else if (hasFull) {
+            setActiveTab('full');
+          }
+        }
       }
     } catch (error) {
       onNotify('Error', 'Archive data fetch failed', 'error');

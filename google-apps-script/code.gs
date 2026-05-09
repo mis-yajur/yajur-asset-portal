@@ -48,6 +48,7 @@ function doPost(e) {
       case 'deleteProduct': result = deleteRow('product_master', 'QLTY_CODE', params.QLTY_CODE); break;
 
       case 'syncLedger': result = syncLedger(params.rows); break;
+      case 'getReports': result = getReports(params.startDate, params.endDate); break;
       
       default:
         throw new Error('Action not recognized: ' + action);
@@ -329,4 +330,84 @@ function archivePI(piNo) {
   console.log('Original rows deleted');
 
   return { success: true, piNo: piNo, archivedAt: archiveTime, liftCount: rowsToRemove.length };
+}
+
+function getReports(startDate, endDate) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const start = startDate ? new Date(startDate) : new Date(0);
+  const end = endDate ? new Date(endDate) : new Date();
+  // Set end of day for comparison
+  end.setHours(23, 59, 59, 999);
+
+  const activePis = getData('pi_data');
+  const activeLifts = getData('lifting_data');
+  const arcPis = getData('archive_pi');
+  const arcLifts = getData('archive_lifting');
+
+  const allPis = [...activePis, ...arcPis];
+  const allLifts = [...activeLifts, ...arcLifts];
+
+  // Filtering by date (using INVOICE_DATE or CREATED_AT for PIs, LAST_DELIVERY_DATE for Lifts)
+  const filteredLifts = allLifts.filter(l => {
+    if (!l.LAST_DELIVERY_DATE) return false;
+    const d = new Date(l.LAST_DELIVERY_DATE);
+    return d >= start && d <= end;
+  });
+
+  // 1. Customer-wise Summary
+  const customerDict = {};
+  filteredLifts.forEach(l => {
+    const name = l.ACCOUNT || 'Unknown';
+    if (!customerDict[name]) customerDict[name] = { account: name, totalDelivered: 0, totalPending: 0 };
+    const target = Number(l.TARGET_KG) || 0;
+    const delivered = Number(l.DELIVERED_KG) || 0;
+    const pending = Math.max(0, target - delivered);
+    customerDict[name].totalDelivered += delivered;
+    customerDict[name].totalPending += (pending <= 100 ? 0 : pending);
+  });
+
+  // 2. PI-wise Summary
+  const piDict = {};
+  filteredLifts.forEach(l => {
+    const no = l.PI_NO || 'Unknown';
+    if (!piDict[no]) piDict[no] = { piNo: no, totalDelivered: 0, totalPending: 0 };
+    const target = Number(l.TARGET_KG) || 0;
+    const delivered = Number(l.DELIVERED_KG) || 0;
+    const pending = Math.max(0, target - delivered);
+    piDict[no].totalDelivered += delivered;
+    piDict[no].totalPending += (pending <= 100 ? 0 : pending);
+  });
+
+  // 3. Month-wise Trend
+  const monthDict = {};
+  filteredLifts.forEach(l => {
+    const date = new Date(l.LAST_DELIVERY_DATE);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const name = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+    if (!monthDict[key]) monthDict[key] = { period: name, totalDelivered: 0, totalPending: 0 };
+    const target = Number(l.TARGET_KG) || 0;
+    const delivered = Number(l.DELIVERED_KG) || 0;
+    const pending = Math.max(0, target - delivered);
+    monthDict[key].totalDelivered += delivered;
+    monthDict[key].totalPending += (pending <= 100 ? 0 : pending);
+  });
+
+  // 4. Signatory Report
+  const sigDict = {};
+  allPis.forEach(p => {
+    const sig = p.AUTHORIZED_SIGNATORY || 'Unknown';
+    if (!sigDict[sig]) sigDict[sig] = { signatory: sig, totalPI: 0, totalQty: 0, pending: 0 };
+    sigDict[sig].totalPI++;
+    sigDict[sig].totalQty += (Number(p.QUANTITY_KG) || 0);
+    if(p.STATUS !== 'COMPLETE') sigDict[sig].pending++;
+  });
+
+  return {
+    customerWise: Object.values(customerDict),
+    piWise: Object.values(piDict),
+    monthWise: Object.values(monthDict).sort((a,b) => a.period.localeCompare(b.period)),
+    signatoryWise: Object.values(sigDict),
+    pendingPIs: activePis.filter(p => p.STATUS !== 'COMPLETE'),
+    allLifting: filteredLifts
+  };
 }

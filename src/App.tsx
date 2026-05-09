@@ -692,14 +692,21 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
     async function loadDashboardData() {
       setIsLoading(true);
       try {
-        const [piRes, liftRes] = await Promise.all([
+        const [piRes, liftRes, arcPiRes, arcLiftRes] = await Promise.all([
           apiCall('getPIData'),
-          apiCall('getLiftingData')
+          apiCall('getLiftingData'),
+          apiCall('getArchivePI'),
+          apiCall('getArchiveLifting')
         ]);
         
         if (piRes.success && liftRes.success) {
-          const pis = piRes.data || [];
-          const lifts = liftRes.data || [];
+          const activePis = piRes.data || [];
+          const activeLifts = liftRes.data || [];
+          const arcPis = arcPiRes.success ? (arcPiRes.data || []) : [];
+          const arcLifts = arcLiftRes.success ? (arcLiftRes.data || []) : [];
+
+          const pis = [...activePis, ...arcPis];
+          const lifts = [...activeLifts, ...arcLifts];
           
           let totalDelivered = 0;
           const pendingDict: Record<string, { pending: number; target: number; delivered: number }> = {};
