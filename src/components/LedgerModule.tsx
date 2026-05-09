@@ -246,7 +246,11 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
           DELIVERED_AMT: e.debitAmt || 0,
           PRICE_BALANCE: e.balanceAmt || 0,
           QTY_BALANCE: e.balanceQty || 0,
-          REMARKS: e.remarks || ''
+          REMARKS: e.remarks || '',
+          // Aliases for historical compatibility with old sheet headers
+          DEBIT_TARGET: e.isInitial ? e.qty : 0,
+          CREDIT_DELIVERED: e.isInitial ? 0 : e.debitAmt,
+          BALANCE: e.balanceAmt
         }));
 
       onNotify('Info', 'Initiating connection to mainframe...', 'info');

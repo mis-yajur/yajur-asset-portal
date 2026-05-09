@@ -15,7 +15,8 @@ import {
   Tag,
   CreditCard,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  IndianRupee
 } from 'lucide-react';
 import { apiCall } from '../services/api';
 import { cn, formatDate } from '../lib/utils';
