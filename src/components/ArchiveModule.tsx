@@ -31,19 +31,46 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [piRes, liftRes] = await Promise.all([
+      const [piRes, liftRes, activePiRes, activeLiftRes] = await Promise.all([
         apiCall('getArchivePI'),
-        apiCall('getArchiveLifting')
+        apiCall('getArchiveLifting'),
+        apiCall('getPIData'),
+        apiCall('getLiftingData')
       ]);
       
       if (piRes.success && liftRes.success) {
-        const pis = piRes.data || [];
-        const lifts = liftRes.data || [];
+        const archivedPis = piRes.data || [];
+        const archivedLifts = liftRes.data || [];
+        const activePis = activePiRes.success ? (activePiRes.data || []) : [];
+        const activeLifts = activeLiftRes.success ? (activeLiftRes.data || []) : [];
+
+        // Combine both archived and active-completed PIs
+        const allPis = [...archivedPis];
+        const allLifts = [...archivedLifts, ...activeLifts];
+
+        // Also add active PIs that are complete or status is COMPLETE
+        activePis.forEach((p: PI) => {
+          const piRef = String(p.PI_NO || '').trim().toUpperCase();
+          const liftsForPi = activeLifts.filter((l: any) => 
+            String(l.PI_NO || '').trim().toUpperCase() === piRef
+          );
+          
+          const totalBal = liftsForPi.reduce((acc: number, l: any) => 
+            acc + (Number(l.TARGET_KG || 0) - Number(l.DELIVERED_KG || 0)), 0
+          );
+
+          if (p.STATUS === 'COMPLETE' || (totalBal >= 0 && totalBal <= 100 && liftsForPi.length > 0)) {
+            // Avoid duplicates if it's somehow in both
+            if (!allPis.find(ap => ap.PI_NO === p.PI_NO)) {
+               allPis.push(p);
+            }
+          }
+        });
         
         // Match PI with its lifting entries
-        const matchedPIs = pis.map((pi: PI) => {
+        const matchedPIs = allPis.map((pi: PI) => {
           const piRef = String(pi.PI_NO || '').trim().toUpperCase();
-          const piLifts = lifts.filter((l: any) => 
+          const piLifts = allLifts.filter((l: any) => 
             String(l.PI_NO || '').trim().toUpperCase() === piRef
           );
           

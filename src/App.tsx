@@ -40,7 +40,7 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn, formatDate } from './lib/utils';
+import { cn, formatDate, safeParseDate } from './lib/utils';
 import { apiCall, getApiUrl, setApiUrl } from './services/api';
 import type { Page, User, ThemeSettings, FontStyle, Notification, AuditLogEntry } from './types';
 
@@ -729,7 +729,7 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
             pendingDict[pName].delivered += delivered;
 
             // Process Timeline
-            const date = l.LAST_DELIVERY_DATE ? new Date(l.LAST_DELIVERY_DATE) : new Date();
+            const date = safeParseDate(l.LAST_DELIVERY_DATE) || new Date();
             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
             const yearKey = `${date.getFullYear()}`;
 

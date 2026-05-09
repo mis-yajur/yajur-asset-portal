@@ -75,6 +75,9 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
       const targetQty = lifting ? Number(lifting.TARGET_KG) : Number(pi.QUANTITY_KG);
       const rate = Number(pi.RATE_PER_UNIT) || 0;
 
+      // Skip General Account / Internal accounts as requested
+      if (pi.CUSTOMER_NAME === 'GENERAL ACCOUNT') return;
+
       // Stock Ledger Entry: Inward (Production)
       stockEntries.push({
         date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
