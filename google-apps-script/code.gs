@@ -86,28 +86,9 @@ function initializeSheets() {
     }
     
     if (sheet.getLastRow() === 1) {
-      // Add Dummy Data for testing
+      // Add initial Admin user if sheet is empty
       if (sheetName === 'users') {
         sheet.appendRow(["admin", "admin123", "admin", "System Administrator"]);
-      }
-      if (sheetName === 'customer_master') {
-        sheet.appendRow([1, "CUS001", "Ghosh Traders", "Kolkata", "", "", "19", "19AAECS2882B3ZB", "PAN123", "9876543210", "ghosh@test.com", "SBI", "Main", "SBIN00123", "123456789"]);
-      }
-      if (sheetName === 'pi_data') {
-        sheet.appendRow(["PI-001", "2024-05-01", "Yajur Lifting", "19AAECS2882B3ZB", "U17100WB1980PLC032918", "BVFR14492922", "Ghosh Traders", "19AAECS2882B3ZB", "Kolkata", "West Bengal", "700001", "30s Combed Yarn", 100, 5000, 250, 1250000, 1250000, "Authorized Admin", "RUNNING", new Date().toISOString()]);
-      }
-      if (sheetName === 'lifting_data') {
-        sheet.appendRow([1, "Ghosh Traders", "Mr. Ghosh", "PI-001", 5000, 5000, 0, 100, 30, "COMPLETE", "2024-05-05", 400, "[]", ""]);
-      }
-      if (sheetName === 'ledger') {
-        sheet.appendRow(["LGR001", "2024-05-01", "PI-001", "Ghosh Traders", "PI Target Lifting", 5000, 250, 0, 1250000, 5000, "Opening Stock Target"]);
-        sheet.appendRow(["LGR002", "2024-05-05", "PI-001", "Ghosh Traders", "Delivery (Sales)", 1500, 250, 375000, 875000, 3500, "First Dispatch"]);
-      }
-      if (sheetName === 'archive_pi') {
-        sheet.appendRow(["PI-ARC-001", "2024-04-01", "Yajur Lifting", "19AAECS2882B3ZB", "U17100WB1980PLC032918", "BVFR14492922", "Past Customer", "19AAECS2882B3ZB", "Kolkata", "West Bengal", "700001", "30s Combed Yarn", 100, 1000, 250, 250000, 250000, "Authorized Admin", "COMPLETE", "2024-04-01T10:00:00Z", "2024-04-30T15:00:00Z"]);
-      }
-      if (sheetName === 'archive_lifting') {
-        sheet.appendRow(["LIFT-ARC-1", "Past Customer", "Mr. X", "PI-ARC-001", 1000, 1000, 0, 100, 30, "COMPLETE", "2024-04-25", 1000, "[]", "Automatically Archived", "2024-04-30T15:00:00Z"]);
       }
     }
   }
