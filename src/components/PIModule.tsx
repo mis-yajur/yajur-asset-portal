@@ -386,7 +386,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
              </div>
 
              <form onSubmit={handleSave} className="p-8 space-y-8 max-h-[60vh] overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">PI Sequence ID</label>
                         <input 
@@ -415,66 +415,9 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                             onChange={e => setCurrentEntry({ ...currentPI, AUTHORIZED_SIGNATORY: e.target.value })}
                         />
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Delivery PIN</label>
-                        <input 
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
-                            value={currentPI?.DELIVERY_PIN || ''}
-                            onChange={e => setCurrentEntry({ ...currentPI, DELIVERY_PIN: e.target.value })}
-                            placeholder="PIN Code"
-                        />
-                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 ring-1 ring-slate-100 p-6 rounded-3xl bg-slate-50/30">
-                    <div className="space-y-6">
-                        <div className="space-y-2">
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Consignee Account</label>
-                            <select 
-                                required
-                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
-                                value={currentPI?.CUSTOMER_NAME || ''}
-                                onChange={e => {
-                                    const cust = customers.find(c => c.PARTY_NAME === e.target.value);
-                                    setCurrentEntry({
-                                        ...currentPI,
-                                        CUSTOMER_NAME: e.target.value,
-                                        CUSTOMER_GST_NO: cust?.GSTIN || '',
-                                        DELIVERY_ADDRESS: [cust?.ADDRESS1, cust?.ADDRESS3].filter(Boolean).join(', '),
-                                        DELIVERY_STATE: cust?.STATE_CODE || ''
-                                    });
-                                }}
-                            >
-                                <option value="">Map Customer</option>
-                                {customers.map(c => (
-                                    <option key={c.PARTY_CODE} value={c.PARTY_NAME}>{c.PARTY_NAME} ({c.PARTY_CODE})</option>
-                                ))}
-                            </select>
-                        </div>
-                        {currentPI?.CUSTOMER_NAME && (
-                            <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600">
-                                        <Building size={14} />
-                                    </div>
-                                    <div>
-                                        <div className="text-xs font-black text-slate-400 uppercase leading-none">GST Sequence</div>
-                                        <div className="text-xs font-black text-slate-700">{currentPI.CUSTOMER_GST_NO || 'UNREGISTERED'}</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-start gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                                        <MapPin size={14} />
-                                    </div>
-                                    <div>
-                                        <div className="text-[10px] font-black text-slate-400 uppercase leading-none">Logistics Destination</div>
-                                        <div className="text-[11px] font-black text-slate-700 uppercase leading-tight mt-1">{currentPI.DELIVERY_ADDRESS}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
+                <div className="grid grid-cols-1 gap-8 ring-1 ring-slate-100 p-6 rounded-3xl bg-slate-50/30">
                     <div className="space-y-6">
                         <div className="space-y-2">
                              <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Asset Quality / Type</label>
@@ -490,6 +433,9 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                 ))}
                              </select>
                         </div>
+                    </div>
+
+                    <div className="space-y-6">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Target KG</label>

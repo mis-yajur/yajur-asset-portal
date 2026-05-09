@@ -148,8 +148,20 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
       });
     });
 
-    stockEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    partyEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    stockEntries.sort((a, b) => {
+      const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      if (a.type?.includes('Target')) return -1;
+      if (b.type?.includes('Target')) return 1;
+      return 0;
+    });
+    partyEntries.sort((a, b) => {
+      const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      if (a.isInitial) return -1;
+      if (b.isInitial) return 1;
+      return 0;
+    });
     
     return { stockEntries, partyEntries };
   }, [piData, liftingData]);

@@ -58,15 +58,21 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
       
       if (liftRes.success) {
         const parsedData = (liftRes.data || []).map((item: any) => {
-          let historyStr = item.HISTORY || item.history || item.History || item.DELIVERY_HISTORY || item.NOTES;
-          let history = historyStr;
-          if (typeof history === 'string') {
-            try { 
-              history = JSON.parse(historyStr);
-            } catch (e) {
-              history = []; 
+          let historyNotes = item.NOTES || '';
+          let history = [];
+          
+          // Try parsing NOTES (JSON) first, then HISTORY
+          try {
+            history = JSON.parse(historyNotes);
+          } catch (e) {
+            try {
+              history = JSON.parse(item.HISTORY || '[]');
+            } catch (e2) {
+              history = [];
             }
           }
+          
+          if (!Array.isArray(history)) history = [];
           
           const target = Number(item.TARGET_KG) || 0;
           const delivered = Number(item.DELIVERED_KG) || 0;
@@ -144,6 +150,10 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
           ...(selectedLifting.HISTORY || []),
           newHistoryItem
       ]);
+      const newHistoryDisplay = [
+          ...(selectedLifting.HISTORY || []),
+          newHistoryItem
+      ].map((h: any) => `${h.deliveryDate}: ${h.quantityKg}kg`).join(' | ');
 
       const remainingKg = selectedLifting.REMAINING_KG - newDelivery.quantityKg;
       const isComplete = remainingKg < 100;
@@ -154,7 +164,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
         REMAINING_KG: Math.max(0, remainingKg),
         LAST_DELIVERY_DATE: newDelivery.date,
         LAST_QTY: newDelivery.quantityKg,
-        HISTORY: newHistoryJson,
+        HISTORY: newHistoryDisplay,
         NOTES: newHistoryJson,
         STATUS: isComplete ? 'COMPLETE' : selectedLifting.STATUS
       };
@@ -203,10 +213,10 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
     setIsLoading(true);
     try {
       const action = currentEntry.LIFTING_ID ? 'updateLifting' : 'addLifting';
-      const historyJson = Array.isArray(currentEntry.HISTORY) ? JSON.stringify(currentEntry.HISTORY) : (currentEntry.HISTORY || '[]');
-      const target = Number(currentEntry.TARGET_KG) || 0;
-      const delivered = Number(currentEntry.DELIVERED_KG) || 0;
-      const remaining = target - delivered;
+    const historyJson = Array.isArray(currentEntry.HISTORY) ? JSON.stringify(currentEntry.HISTORY) : (currentEntry.HISTORY || '[]');
+    const historyDisplay = Array.isArray(currentEntry.HISTORY) 
+        ? currentEntry.HISTORY.map((h: any) => `${h.deliveryDate}: ${h.quantityKg}kg`).join(' | ')
+        : (currentEntry.HISTORY || '');
 
       const payload = {
         ...currentEntry,
@@ -215,7 +225,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
         DELIVERED_KG: delivered,
         REMAINING_KG: remaining,
         LAST_DELIVERY_DATE: currentEntry.LAST_DELIVERY_DATE || new Date().toISOString().split('T')[0],
-        HISTORY: historyJson,
+        HISTORY: historyDisplay,
         NOTES: historyJson
       };
       
