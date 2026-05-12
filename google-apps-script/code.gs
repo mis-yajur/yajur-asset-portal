@@ -53,6 +53,7 @@ function doPost(e) {
       case 'deletePI': result = deleteRow('pi_data', 'PI_NO', params.PI_NO); break;
       
       case 'archivePI': result = archivePI(params.PI_NO); break;
+      case 'archiveLiftingEntry': result = archiveLiftingEntry(params.LIFTING_ID); break;
       
       case 'addCustomer': result = addRow('customer_master', params); break;
       case 'bulkUploadCustomers': result = bulkUpload('customer_master', params.customers); break;
@@ -433,6 +434,52 @@ function restoreArchive() {
   });
   
   return { success: true, count: totalRestored };
+}
+
+function archiveLiftingEntry(liftingId) {
+  if (!liftingId) throw new Error('LIFTING_ID is required');
+  const targetId = String(liftingId).trim().toUpperCase();
+  
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const liftSheet = ss.getSheetByName('lifting_data');
+  const arcLiftSheet = ss.getSheetByName('archive_lifting');
+  
+  if (!arcLiftSheet) initializeSheets();
+
+  const liftDataValues = liftSheet.getDataRange().getValues();
+  const liftHeaders = liftDataValues[0];
+  const liftIdIdx = liftHeaders.indexOf('LIFTING_ID');
+  const archiveTime = new Date().toISOString();
+
+  let entryToArchive = null;
+  let rowIndex = -1;
+
+  for (let i = 1; i < liftDataValues.length; i++) {
+    if (String(liftDataValues[i][liftIdIdx]).trim().toUpperCase() === targetId) {
+      entryToArchive = liftDataValues[i];
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  if (!entryToArchive) throw new Error('Lifting entry not found');
+
+  // Archive to sheet
+  const arcHeaders = arcLiftSheet.getDataRange().getValues()[0];
+  const arcRow = arcHeaders.map(h => {
+    if (h === 'ARCHIVED_AT') return archiveTime;
+    const idx = liftHeaders.indexOf(h);
+    return idx !== -1 ? entryToArchive[idx] : "";
+  });
+  arcLiftSheet.appendRow(arcRow);
+
+  // Mark as ARCHIVED in main sheet
+  const statusIdx = liftHeaders.indexOf('STATUS');
+  if (statusIdx !== -1) {
+    liftSheet.getRange(rowIndex, statusIdx + 1).setValue('ARCHIVED');
+  }
+
+  return { success: true, archivedId: targetId };
 }
 
 function getReports(startDate, endDate) {

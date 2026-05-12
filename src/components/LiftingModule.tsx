@@ -119,6 +119,8 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
           const piNo = String(l.PI_NO || '').trim().toUpperCase();
           const p = pis.find((pi: any) => String(pi.PI_NO || '').trim().toUpperCase() === piNo);
           
+          const isIndividualComplete = l.REMAINING_KG <= 100;
+
           if (p) {
             const stats = piStats.get(piNo);
             const totalRequired = safeParseNumber(p.QUANTITY_KG);
@@ -130,10 +132,11 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
             return {
               ...l,
               IS_PI_COMPLETE: isPiComplete,
+              IS_ENTRY_COMPLETE: isIndividualComplete,
               TOTAL_PI_REMAINING: Math.max(0, totalRequired - stats.delivered)
             };
           }
-          return { ...l, IS_PI_COMPLETE: false, TOTAL_PI_REMAINING: l.REMAINING_KG };
+          return { ...l, IS_PI_COMPLETE: false, IS_ENTRY_COMPLETE: isIndividualComplete, TOTAL_PI_REMAINING: l.REMAINING_KG };
         });
 
         setLiftingData(finalData);
@@ -248,6 +251,26 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
       if (res.success) {
         onNotify('Archived', `PI ${piNo} moved to Resolution Matrix`, 'success');
         onLog('Archive PI', `PI: ${piNo}`);
+        await loadData();
+      } else {
+        onNotify('Error', res.error || 'Archiving failed', 'error');
+      }
+    } catch (error) {
+      onNotify('Error', 'Archive request failed', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleArchiveEntry = async (liftingId: string, piNo: string) => {
+    if (!window.confirm(`Archive this specific part entry? It will move to historical records and leave the active portal.`)) return;
+    
+    setIsLoading(true);
+    try {
+      const res = await apiCall('archiveLiftingEntry', { LIFTING_ID: liftingId });
+      if (res.success) {
+        onNotify('Archived', `Lifting Entry ${liftingId} archived`, 'success');
+        onLog('Archive Entry', `ID: ${liftingId}, PI: ${piNo}`);
         await loadData();
       } else {
         onNotify('Error', res.error || 'Archiving failed', 'error');
@@ -481,17 +504,27 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className={cn(
-                          "px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-widest",
-                          item.IS_PI_COMPLETE ? "bg-teal-100 text-teal-700 shadow-sm border border-teal-200" : 
-                          item.STATUS === 'RUNNING' ? "bg-blue-100 text-blue-700" : 
-                          "bg-amber-100 text-amber-700"
-                        )}>
-                          {item.IS_PI_COMPLETE ? 'COMPLETE' : (item.STATUS === 'COMPLETE' ? 'RUNNING' : item.STATUS)}
-                        </span>
+                        {item.IS_PI_COMPLETE || item.IS_ENTRY_COMPLETE ? (
+                          <span className="px-3 py-1 bg-teal-100 text-teal-700 rounded-full text-[11px] font-black uppercase tracking-widest shadow-sm border border-teal-200">
+                            COMPLETE
+                          </span>
+                        ) : (
+                          <span className={cn(
+                            "px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-widest",
+                            item.STATUS === 'RUNNING' ? "bg-blue-100 text-blue-700" : 
+                            "bg-amber-100 text-amber-700"
+                          )}>
+                            {item.STATUS === 'COMPLETE' ? 'RUNNING' : item.STATUS}
+                          </span>
+                        )}
+                        
                         {item.IS_PI_COMPLETE ? (
                           <div className="mt-1 text-[9px] font-black text-teal-600 uppercase tracking-tighter text-center">
                             PI FULLY DELIVERED
+                          </div>
+                        ) : item.IS_ENTRY_COMPLETE ? (
+                          <div className="mt-1 text-[9px] font-black text-teal-600 uppercase tracking-tighter text-center">
+                            ENTRY DELIVERED
                           </div>
                         ) : (
                           item.TOTAL_PI_REMAINING > 100 && (
@@ -503,11 +536,11 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {item.IS_PI_COMPLETE && (
+                          {(item.IS_PI_COMPLETE || item.IS_ENTRY_COMPLETE) && (
                             <button 
-                              onClick={() => handleArchive(item.PI_NO)}
+                              onClick={() => item.IS_PI_COMPLETE ? handleArchive(item.PI_NO) : handleArchiveEntry(item.LIFTING_ID, item.PI_NO)}
                               className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
-                              title="Archive Entire PI"
+                              title={item.IS_PI_COMPLETE ? "Archive Entire PI" : "Archive Entry"}
                             >
                               <Archive size={16} />
                             </button>
