@@ -31,21 +31,25 @@ export default function ArchiveModule({ onNotify }: ArchiveModuleProps) {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [piRes, liftRes, activePiRes, activeLiftRes] = await Promise.all([
+      const [piRes, liftRes] = await Promise.all([
         apiCall('getArchivePI'),
-        apiCall('getArchiveLifting'),
-        apiCall('getPIData'),
-        apiCall('getLiftingData')
+        apiCall('getArchiveLifting')
       ]);
       
-        if (piRes.success && liftRes.success) {
-          const archivedLifts = liftRes.data || [];
-
-          // Deduplicate by LIFTING_ID (or equivalent unique ref)
-          const uniqueLifts = Array.from(new Map(archivedLifts.map((item: any) => [item.LIFTING_ID || `${item.PI_NO}-${item.ACCOUNT}`, item])).values());
-          
-          setLiftingData(uniqueLifts);
-        }
+      if (piRes.success) {
+        setCompletePIs(piRes.data || []);
+      }
+      
+      if (liftRes.success) {
+        const archivedLifts = liftRes.data || [];
+        // Deduplicate by LIFTING_ID
+        const liftMap = new Map();
+        archivedLifts.forEach((item: any) => {
+          const key = item.LIFTING_ID || `${item.PI_NO}-${item.ACCOUNT}`;
+          liftMap.set(key, item);
+        });
+        setLiftingData(Array.from(liftMap.values()));
+      }
     } catch (error) {
       onNotify('Error', 'Archive data fetch failed', 'error');
     } finally {

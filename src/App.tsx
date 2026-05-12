@@ -40,7 +40,7 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn, formatDate, safeParseDate } from './lib/utils';
+import { cn, formatDate, safeParseDate, safeParseNumber } from './lib/utils';
 import { apiCall, getApiUrl, setApiUrl } from './services/api';
 import type { Page, User, ThemeSettings, FontStyle, Notification, AuditLogEntry } from './types';
 
@@ -692,67 +692,69 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
     async function loadDashboardData() {
       setIsLoading(true);
       try {
-        const [piRes, liftRes, arcPiRes, arcLiftRes] = await Promise.all([
-          apiCall('getPIData'),
-          apiCall('getLiftingData'),
-          apiCall('getArchivePI'),
-          apiCall('getArchiveLifting')
-        ]);
+        const res = await apiCall('getDashboardData');
         
-          if (piRes.success && liftRes.success) {
-            const activePis = piRes.data || [];
-            const activeLifts = liftRes.data || [];
-            const arcPis = arcPiRes.success ? (arcPiRes.data || []) : [];
-            const arcLifts = arcLiftRes.success ? (arcLiftRes.data || []) : [];
+        if (res.success) {
+          const activePis = res.data.pi || [];
+          const activeLifts = res.data.lifting || [];
+          const arcPis = res.data.archivePi || [];
+          const arcLifts = res.data.archiveLifting || [];
 
-            // Deduplicate PIs by PI_NO
-            const piMap = new Map<string, any>();
-            [...arcPis, ...activePis].forEach((p: any) => {
-              if (p.PI_NO) piMap.set(String(p.PI_NO).trim().toUpperCase(), p);
-            });
-            const pis = Array.from(piMap.values());
-            
-            // Deduplicate Liftings by LIFTING_ID
-            const liftMap = new Map<string, any>();
-            [...arcLifts, ...activeLifts].forEach((l: any) => {
-              if (l.LIFTING_ID) liftMap.set(String(l.LIFTING_ID).trim().toUpperCase(), l);
-            });
-            const lifts = Array.from(liftMap.values());
-            
-            let totalDelivered = 0;
+          // Deduplicate PIs by PI_NO
+          const piMap = new Map<string, any>();
+          [...arcPis, ...activePis].forEach((p: any) => {
+            if (p.PI_NO) piMap.set(String(p.PI_NO).trim().toUpperCase(), p);
+          });
+          const pis = Array.from(piMap.values());
+          
+          // Deduplicate Liftings by LIFTING_ID
+          const liftMap = new Map<string, any>();
+          [...arcLifts, ...activeLifts].forEach((l: any) => {
+            if (l.LIFTING_ID) liftMap.set(String(l.LIFTING_ID).trim().toUpperCase(), l);
+          });
+          const lifts = Array.from(liftMap.values());
+          
+          let totalDeliveredAllTime = 0;
           const pendingDict: Record<string, { pending: number; target: number; delivered: number }> = {};
           const monthDict: Record<string, { delivered: number; target: number; pending: number }> = {};
           const yearDict: Record<string, { delivered: number; target: number; pending: number }> = {};
 
           lifts.forEach((l: any) => {
-            const delivered = Number(l.DELIVERED_KG) || 0;
-            const target = Number(l.TARGET_KG) || 0;
-            // <= 100kg rule: if remaining <= 100kg, treat as 0 pending
+            const delivered = safeParseNumber(l.DELIVERED_KG);
+            const target = safeParseNumber(l.TARGET_KG);
+            // The user's tolerance logic for "Total Pending" count
+            // However, stats should probably show ACTUAL pending unless it's very small
             const actualPending = Math.max(0, target - delivered);
-            const pending = actualPending <= 100 ? 0 : actualPending;
+            const isPracticallyComplete = actualPending <= 100;
+            const pending = isPracticallyComplete ? 0 : actualPending;
             
-            totalDelivered += delivered;
+            totalDeliveredAllTime += delivered;
             
             const pName = l.ACCOUNT || 'Unknown';
             if (!pendingDict[pName]) pendingDict[pName] = { pending: 0, target: 0, delivered: 0 };
-            pendingDict[pName].pending += pending;
+            pendingDict[pName].pending += (l.STATUS === 'COMPLETE' || isPracticallyComplete ? 0 : actualPending);
             pendingDict[pName].target += target;
             pendingDict[pName].delivered += delivered;
 
             // Process Timeline
-            const date = safeParseDate(l.LAST_DELIVERY_DATE) || new Date();
+            const dateStr = l.LAST_DELIVERY_DATE || l.DATE || l.CREATED_AT;
+            const date = safeParseDate(dateStr) || new Date();
             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
             const yearKey = `${date.getFullYear()}`;
 
             if (!monthDict[monthKey]) monthDict[monthKey] = { delivered: 0, target: 0, pending: 0 };
             monthDict[monthKey].delivered += delivered;
             monthDict[monthKey].target += target;
-            monthDict[monthKey].pending += pending;
+            if (l.STATUS !== 'COMPLETE' && !isPracticallyComplete) {
+               monthDict[monthKey].pending += actualPending;
+            }
 
             if (!yearDict[yearKey]) yearDict[yearKey] = { delivered: 0, target: 0, pending: 0 };
             yearDict[yearKey].delivered += delivered;
             yearDict[yearKey].target += target;
-            yearDict[yearKey].pending += pending;
+            if (l.STATUS !== 'COMPLETE' && !isPracticallyComplete) {
+              yearDict[yearKey].pending += actualPending;
+            }
           });
           
           const topPendingArr = Object.keys(pendingDict)
@@ -762,24 +764,27 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
                totalTarget: pendingDict[k].target,
                totalDelivered: pendingDict[k].delivered
              }))
+             .filter(p => p.totalPending > 0)
              .sort((a,b) => b.totalPending - a.totalPending);
              
           const totalPending = topPendingArr.reduce((s, p) => s + p.totalPending, 0);
           
-          const monthlyArr = Object.keys(monthDict).sort().reverse().map(k => ({
-            monthKey: k,
-            monthName: new Date(k + '-01').toLocaleString('default', { month: 'short', year: 'numeric' }),
-            delivered: monthDict[k].delivered,
-            target: monthDict[k].target,
-            pending: monthDict[k].pending
-          }));
+    const monthlyArr = Object.keys(monthDict).sort().reverse().map(k => ({
+      monthKey: k,
+      monthName: new Date(k + '-01').toLocaleString('default', { month: 'short', year: 'numeric' }),
+      delivered: monthDict[k].delivered,
+      target: monthDict[k].target,
+      pending: monthDict[k].pending,
+      running: monthDict[k].target - monthDict[k].delivered
+    }));
 
-          const yearlyArr = Object.keys(yearDict).sort().reverse().map(k => ({
-            yearKey: k,
-            delivered: yearDict[k].delivered,
-            target: yearDict[k].target,
-            pending: yearDict[k].pending
-          }));
+    const yearlyArr = Object.keys(yearDict).sort().reverse().map(k => ({
+      yearKey: k,
+      delivered: yearDict[k].delivered,
+      target: yearDict[k].target,
+      pending: yearDict[k].pending,
+      running: yearDict[k].target - yearDict[k].delivered
+    }));
 
           const piStatusReport: Record<string, any> = {
             'RUNNING': { count: 0, delivered: 0, target: 0 },
@@ -787,22 +792,24 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
           };
 
           pis.forEach((p: any) => {
-            const status = p.STATUS === 'COMPLETE' ? 'COMPLETE' : 'RUNNING';
-            piStatusReport[status].count++;
+            const isComplete = String(p.STATUS).toUpperCase() === 'COMPLETE';
+            const statusLabel = isComplete ? 'COMPLETE' : 'RUNNING';
+            piStatusReport[statusLabel].count++;
             
-            const matchingLifts = lifts.filter((l: any) => l.PI_NO === p.PI_NO);
-            const delivered = matchingLifts.reduce((sum: number, l: any) => sum + (Number(l.DELIVERED_KG) || 0), 0);
-            const target = Number(p.QUANTITY_KG) || 0;
+            const matchingLifts = lifts.filter((l: any) => String(l.PI_NO).trim().toUpperCase() === String(p.PI_NO).trim().toUpperCase());
+            const delivered = matchingLifts.reduce((sum: number, l: any) => sum + safeParseNumber(l.DELIVERED_KG), 0);
+            const target = safeParseNumber(p.QUANTITY_KG);
             
-            piStatusReport[status].delivered += delivered;
-            piStatusReport[status].target += target;
+            piStatusReport[statusLabel].delivered += delivered;
+            piStatusReport[statusLabel].target += target;
           });
 
           setData({
+             totalDelivered: totalDeliveredAllTime,
              monthly: { data: monthlyArr },
              yearly: { data: yearlyArr },
              topPending: { data: topPendingArr },
-             pendingPIs: { data: pis.filter((p:any) => p.STATUS !== 'COMPLETE') },
+             pendingPIs: { data: pis.filter((p:any) => String(p.STATUS).toUpperCase() !== 'COMPLETE') },
              piSummary: { data: pis, statusReport: piStatusReport }
           });
           
@@ -866,27 +873,23 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
       value: data?.piSummary?.data ? (data.piSummary.data.reduce((sum: number, p: any) => sum + (Number(p.QUANTITY_KG) || 0), 0)).toLocaleString() + " Kg" : "0 Kg", 
       icon: <Calendar size={20} />, 
       color: "bg-indigo-600",
-      trend: data?.piSummary?.data?.length > 0 ? [...new Set(data.piSummary.data.map((p: any) => p.CUSTOMER_NAME))].sort((a,b) => {
-        const sumA = data.piSummary.data.filter((p:any) => p.CUSTOMER_NAME === a).reduce((s:number, p:any) => s + (Number(p.QUANTITY_KG)||0), 0);
-        const sumB = data.piSummary.data.filter((p:any) => p.CUSTOMER_NAME === b).reduce((s:number, p:any) => s + (Number(p.QUANTITY_KG)||0), 0);
-        return sumB - sumA;
-      })[0] : "No Active Targets",
+      trend: `Running: ${data?.piSummary?.statusReport?.['RUNNING']?.target?.toLocaleString() || 0} Kg`,
       status: { label: "Target Set", color: "bg-indigo-100 text-indigo-700" }
     },
     { 
       label: "Total Delivered", 
-      value: data?.monthly?.data ? `${(data?.monthly?.data?.reduce((s: any, m: any) => s + (parseFloat(m.delivered) || 0), 0) || 0).toLocaleString()} kg` : '0 kg', 
+      value: `${(data?.totalDelivered || 0).toLocaleString()} kg`, 
       icon: <Truck size={20} />, 
       color: "bg-accent",
-      trend: "Total Volume",
+      trend: `This Month: ${(data?.monthly?.data?.[0]?.delivered || 0).toLocaleString()} Kg`,
       status: { label: "Fulfilled", color: "bg-blue-100 text-blue-700" }
     },
     { 
       label: "Total Pending", 
-      value: data?.monthly?.data ? `${(data?.monthly?.data?.reduce((s: any, m: any) => s + (parseFloat(m.pending) || 0), 0) || 0).toLocaleString()} kg` : '0 kg', 
+      value: `${(data?.monthly?.data?.reduce((s: any, m: any) => s + (parseFloat(m.pending) || 0), 0) || 0).toLocaleString()} kg`, 
       icon: <AlertCircle size={20} />, 
       color: "bg-rose-500",
-      trend: "Critical Focus",
+      trend: "Operational Balance",
       status: { label: "Attention", color: "bg-rose-100 text-rose-700" }
     },
     { 
@@ -1016,12 +1019,16 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
 
           <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
             <div>
-              <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Delivered</div>
+              <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Delivered (Total)</div>
               <div className="text-sm font-black text-slate-900 num-font">{(currentMonthData?.delivered || 0).toLocaleString()} kg</div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] font-black text-rose-500 uppercase tracking-tighter">Pending</div>
-              <div className="text-sm font-black text-slate-900 num-font">{(currentMonthData?.pending || 0).toLocaleString()} kg</div>
+              <div className="text-[10px] font-black text-indigo-600 uppercase tracking-tighter">Running (Today)</div>
+              <div className="text-sm font-black text-indigo-600 num-font">{(currentMonthData?.running || 0).toLocaleString()} kg</div>
+            </div>
+            <div className="col-span-2 pt-2">
+              <div className="text-[10px] font-black text-rose-500 uppercase tracking-tighter">Net Pending</div>
+              <div className="text-sm font-black text-rose-600 num-font">{(currentMonthData?.pending || 0).toLocaleString()} kg</div>
             </div>
           </div>
           
@@ -1062,14 +1069,12 @@ function Dashboard({ user, onNotify, onLog, onNavigate }: { user: User | null, o
 
           <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
             <div>
-              <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Total Inward</div>
-              <div className="text-sm font-black text-slate-900 num-font">{(currentYearData?.target || 0).toLocaleString()} kg</div>
+              <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Delivered (Total)</div>
+              <div className="text-sm font-black text-slate-900 num-font">{(currentYearData?.delivered || 0).toLocaleString()} kg</div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] font-black text-indigo-600 uppercase tracking-tighter">Completion</div>
-              <div className="text-sm font-black text-slate-900 num-font">
-                {currentYearData?.target ? Math.round((currentYearData.delivered / currentYearData.target) * 100) : 0}%
-              </div>
+              <div className="text-[10px] font-black text-indigo-600 uppercase tracking-tighter">Running</div>
+              <div className="text-sm font-black text-indigo-600 num-font">{(currentYearData?.running || 0).toLocaleString()} kg</div>
             </div>
           </div>
           

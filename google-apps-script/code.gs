@@ -21,12 +21,21 @@ function doPost(e) {
         break;
       case 'getLiftingData': {
         const data = getData('lifting_data');
-        result = data.filter(r => String(r.STATUS).toUpperCase() !== 'COMPLETE');
+        result = data.filter(r => String(r.STATUS).toUpperCase() !== 'ARCHIVED');
         break;
       }
       case 'getPIData': {
         const data = getData('pi_data');
-        result = data.filter(r => String(r.STATUS).toUpperCase() !== 'COMPLETE');
+        result = data.filter(r => String(r.STATUS).toUpperCase() !== 'ARCHIVED');
+        break;
+      }
+      case 'getDashboardData': {
+        result = {
+          pi: getData('pi_data'),
+          lifting: getData('lifting_data'),
+          archivePi: getData('archive_pi'),
+          archiveLifting: getData('archive_lifting')
+        };
         break;
       }
       case 'getCustomers': result = getData('customer_master'); break;
@@ -353,18 +362,23 @@ function archivePI(piNo) {
   try {
     const piStatusIdx = piHeaders.indexOf('STATUS');
     if (piStatusIdx !== -1) {
-      piSheet.getRange(piRowIndex, piStatusIdx + 1).setValue('COMPLETE');
+      piSheet.getRange(piRowIndex, piStatusIdx + 1).setValue('ARCHIVED');
+      console.log('Main PI marked ARCHIVED');
     }
     
-    if (rowsToRemove.length > 0) {
-      const liftStatusIdx = liftHeaders.indexOf('STATUS');
-      if (liftStatusIdx !== -1) {
-        rowsToRemove.forEach(row => {
-          liftSheet.getRange(row, liftStatusIdx + 1).setValue('COMPLETE');
-        });
+    // Batch update lifting statuses
+    const liftDataAfterDelete = liftSheet.getDataRange().getValues();
+    const liftStatusIdx = liftHeaders.indexOf('STATUS');
+    const liftNoIdx = liftHeaders.indexOf('PI_NO');
+    
+    if (liftStatusIdx !== -1) {
+      for (let i = 1; i < liftDataAfterDelete.length; i++) {
+        if (String(liftDataAfterDelete[i][liftNoIdx]).trim().toUpperCase() === targetPiNo) {
+          liftSheet.getRange(i + 1, liftStatusIdx + 1).setValue('ARCHIVED');
+        }
       }
     }
-    console.log('Main records updated to COMPLETE status');
+    console.log('Associated lifting records updated to ARCHIVED status');
   } catch (e) {
     console.warn('Failed to update status in main sheet, but archive copy is created: ' + e.message);
   }

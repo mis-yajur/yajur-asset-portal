@@ -17,6 +17,14 @@ export function formatDate(date: Date | string | undefined | null): string {
   return `${day}-${month}-${year}`;
 }
 
+export function safeParseNumber(val: any): number {
+  if (val === undefined || val === null || val === '') return 0;
+  if (typeof val === 'number') return val;
+  const str = String(val).replace(/,/g, '').trim();
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+}
+
 export function safeParseDate(dateStr: any): Date | null {
   if (!dateStr) return null;
   if (dateStr instanceof Date) return dateStr;

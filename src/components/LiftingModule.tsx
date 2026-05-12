@@ -21,7 +21,7 @@ import {
   Archive
 } from 'lucide-react';
 import { apiCall } from '../services/api';
-import { cn, formatDate } from '../lib/utils';
+import { cn, formatDate, safeParseNumber } from '../lib/utils';
 import type { Lifting, PI, Customer, Notification, DeliveryRecord } from '../types';
 
 interface LiftingModuleProps {
@@ -58,7 +58,20 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
       ]);
       
       if (liftRes.success) {
-        const parsedData = (liftRes.data || []).map((item: any) => {
+        const activePis = piRes.data || [];
+        const rawLifts = liftRes.data || [];
+        
+        // Merge with archived PIs just in case we need metadata for an unarchived lifting entry
+        const arcPiRes = await apiCall('getArchivePI');
+        const archivedPis = arcPiRes.success ? (arcPiRes.data || []) : [];
+        
+        const piMap = new Map();
+        [...archivedPis, ...activePis].forEach(p => {
+           if (p.PI_NO) piMap.set(String(p.PI_NO).trim().toUpperCase(), p);
+        });
+        const pis = Array.from(piMap.values());
+
+        const mappedData = rawLifts.map((item: any) => {
           let historyNotes = item.NOTES || '';
           let history = [];
           
@@ -74,8 +87,8 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
           
           if (!Array.isArray(history)) history = [];
           
-          const target = Number(item.TARGET_KG) || 0;
-          const delivered = Number(item.DELIVERED_KG) || 0;
+          const target = safeParseNumber(item.TARGET_KG);
+          const delivered = safeParseNumber(item.DELIVERED_KG);
           const remaining = Math.max(0, target - delivered);
 
           return { 
@@ -83,35 +96,35 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
             TARGET_KG: target,
             DELIVERED_KG: delivered,
             REMAINING_KG: remaining,
-            FREQUENCY: Number(item.FREQUENCY) || 30,
-            HISTORY: Array.isArray(history) ? history : [],
+            FREQUENCY: safeParseNumber(item.FREQUENCY) || 30,
+            HISTORY: history,
             LAST_DELIVERY_DATE: item.LAST_DELIVERY_DATE || item.lastDeliveryDate || item.DELIVERY_DATE || item.deliveryDate || item.DATE || '' 
           };
         });
 
         // PI-level completion calculation logic
-        const pis = piRes.data || [];
         const piStats = new Map();
-        
-        // Group all liftings (active) by PI
-        parsedData.forEach((l: any) => {
+        mappedData.forEach((l: any) => {
           const piNo = String(l.PI_NO || '').trim().toUpperCase();
           if (!piStats.has(piNo)) {
-            piStats.set(piNo, { delivered: 0, parts: 0 });
+            piStats.set(piNo, { delivered: 0, parts: 0, totalTarget: 0 });
           }
           const stats = piStats.get(piNo);
-          stats.delivered += Number(l.DELIVERED_KG) || 0;
+          stats.delivered += safeParseNumber(l.DELIVERED_KG);
+          stats.totalTarget += safeParseNumber(l.TARGET_KG);
           stats.parts += 1;
         });
 
-        const finalData = parsedData.map((l: any) => {
+        const finalData = mappedData.map((l: any) => {
           const piNo = String(l.PI_NO || '').trim().toUpperCase();
           const p = pis.find((pi: any) => String(pi.PI_NO || '').trim().toUpperCase() === piNo);
           
           if (p) {
             const stats = piStats.get(piNo);
-            const totalRequired = Number(p.QUANTITY_KG) || 0;
+            const totalRequired = safeParseNumber(p.QUANTITY_KG);
             const tolerance = stats.parts * 100;
+            
+            // PI is complete if total delivered on its active parts is >= (Total PI Qty - tolerance)
             const isPiComplete = stats.delivered >= (totalRequired - tolerance);
             
             return {
@@ -476,10 +489,16 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                         )}>
                           {item.IS_PI_COMPLETE ? 'COMPLETE' : (item.STATUS === 'COMPLETE' ? 'RUNNING' : item.STATUS)}
                         </span>
-                        {item.IS_PI_COMPLETE && (
+                        {item.IS_PI_COMPLETE ? (
                           <div className="mt-1 text-[9px] font-black text-teal-600 uppercase tracking-tighter text-center">
                             PI FULLY DELIVERED
                           </div>
+                        ) : (
+                          item.TOTAL_PI_REMAINING > 100 && (
+                            <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-tighter text-center">
+                              {Math.round(item.TOTAL_PI_REMAINING).toLocaleString()}kg PI PENDING
+                            </div>
+                          )
                         )}
                       </td>
                       <td className="px-5 py-4 text-right">
