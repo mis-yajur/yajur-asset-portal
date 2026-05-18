@@ -229,17 +229,17 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
     return total;
   };
 
-  const [pdfGenerationStatus, setPdfGenerationStatus] = useState<{loading: boolean, pi: any | null, pdfUrl: string | null, pdfId: string | null, pdfDownloadUrl: string | null, error: string | null}>({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null});
+  const [pdfGenerationStatus, setPdfGenerationStatus] = useState<{isOpen: boolean, loading: boolean, pi: any | null, pdfUrl: string | null, pdfId: string | null, pdfDownloadUrl: string | null, error: string | null}>({isOpen: false, loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null});
 
   const generatePIPdf = async (pi: any) => {
-    setPdfGenerationStatus({ loading: true, pi, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null });
+    setPdfGenerationStatus({ isOpen: true, loading: true, pi, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null });
     onNotify('Info', 'Generating PDF using template on backend...', 'info');
     try {
       // Use Google Apps Script backend to generate the PDF instead of client-side html2pdf
       const res = await apiCall('generatePdfFromTemplate', pi);
       
       if (res.success && res.data) {
-         setPdfGenerationStatus({ loading: false, pi, pdfUrl: res.data.pdfUrl, pdfId: res.data.pdfId, pdfDownloadUrl: res.data.pdfDownloadUrl, error: null });
+         setPdfGenerationStatus({ isOpen: true, loading: false, pi, pdfUrl: res.data.pdfUrl, pdfId: res.data.pdfId, pdfDownloadUrl: res.data.pdfDownloadUrl, error: null });
          onNotify('Success', 'PDF generated and saved to Drive successfully', 'success');
          onLog('Export PDF', `Generated PI ${pi.PI_NO} via Drive`);
       } else {
@@ -247,7 +247,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       }
     } catch (error: any) {
       console.error(error);
-      setPdfGenerationStatus({ loading: false, pi, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: error.message || 'Failed to generate PDF on server.' });
+      setPdfGenerationStatus({ isOpen: true, loading: false, pi, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: error.message || 'Failed to generate PDF on server.' });
       onNotify('Error', 'Failed to generate PDF on server. Check console for details.', 'error');
     }
   };
@@ -482,10 +482,10 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       )}
 
       {/* PDF Action Modal */}
-      {(pdfGenerationStatus.loading || pdfGenerationStatus.pdfUrl || pdfGenerationStatus.error) ? (
+      {pdfGenerationStatus.isOpen ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-primary/40 backdrop-blur-md" onClick={() => {
-              if(!pdfGenerationStatus.loading) setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null});
+              if(!pdfGenerationStatus.loading) setPdfGenerationStatus({isOpen: false, loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null});
           }} />
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-200">
              <div className="bg-primary text-white p-6">
@@ -494,7 +494,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                         <h3 className="text-xl font-black uppercase tracking-tight">PDF Export</h3>
                     </div>
                     {!pdfGenerationStatus.loading && (
-                        <button onClick={() => setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null})} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                        <button onClick={() => setPdfGenerationStatus({isOpen: false, loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null})} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
                             <X size={20} />
                         </button>
                     )}

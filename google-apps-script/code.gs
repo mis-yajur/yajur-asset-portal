@@ -720,8 +720,6 @@ function generatePdfFromTemplate(params) {
     "<<CGST%>>": params.CGST_PERCENT || "0",
     "<<SGST%>>": params.SGST_PERCENT || "0",
     "<<IGST%>>": params.IGST_PERCENT || "5",
-    "<<other_charg": params.OTHER_CHARGES || "0.00",
-    "<<other_charges>>": params.OTHER_CHARGES || "0.00",
     "<<OTHER_CHARGES>>": params.OTHER_CHARGES || "0.00",
     "<<Payment Terms>>": params.PAYMENT_TERMS || " ",
     "<<Note>>": params.NOTE || " ",
@@ -795,7 +793,7 @@ function generatePdfFromTemplate(params) {
   
   return {
     pdfUrl: finalPdf.getUrl(),
-    pdfDownloadUrl: finalPdf.getDownloadUrl(),
+    pdfDownloadUrl: `https://drive.google.com/uc?export=download&id=${finalPdf.getId()}`,
     pdfId: finalPdf.getId()
   };
 }
