@@ -238,8 +238,8 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       // Use Google Apps Script backend to generate the PDF instead of client-side html2pdf
       const res = await apiCall('generatePdfFromTemplate', pi);
       
-      if (res.success || res.pdfUrl) {
-         setPdfGenerationStatus({ loading: false, pi, pdfUrl: res.pdfUrl, pdfId: res.pdfId, pdfDownloadUrl: res.pdfDownloadUrl });
+      if (res.success && res.data) {
+         setPdfGenerationStatus({ loading: false, pi, pdfUrl: res.data.pdfUrl, pdfId: res.data.pdfId, pdfDownloadUrl: res.data.pdfDownloadUrl });
          onNotify('Success', 'PDF generated and saved to Drive successfully', 'success');
          onLog('Export PDF', `Generated PI ${pi.PI_NO} via Drive`);
       } else {
@@ -259,7 +259,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
     try {
       // pdfId is now the Google Drive File ID
       const res = await apiCall('sendEmailWithPdf', { pdfId: pdfId, emailTo: emailRecipient, PI_NO: piNo });
-      if(res.success || typeof res === 'string' && res.includes('Email sent')) {
+      if(res.success || typeof res.data === 'string' && res.data.includes('Email sent')) {
         onNotify('Success', `Email sent successfully to ${emailRecipient}`, 'success');
         onLog('Email PDF', `Emailed PI ${piNo} to ${emailRecipient}`);
       } else {
@@ -485,7 +485,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       {pdfGenerationStatus.loading || pdfGenerationStatus.pdfUrl ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-primary/40 backdrop-blur-md" onClick={() => {
-              if(!pdfGenerationStatus.loading) setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null});
+              if(!pdfGenerationStatus.loading) setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null});
           }} />
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-200">
              <div className="bg-primary text-white p-6">
@@ -494,7 +494,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                         <h3 className="text-xl font-black uppercase tracking-tight">PDF Export</h3>
                     </div>
                     {!pdfGenerationStatus.loading && (
-                        <button onClick={() => setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null})} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                        <button onClick={() => setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null})} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
                             <X size={20} />
                         </button>
                     )}
