@@ -71,7 +71,10 @@ export interface PI {
   CERTIFICATE_NO?: string;
   CUSTOMER_NAME: string;
   CUSTOMER_GST_NO?: string;
+  CUSTOMER_ADDRESS?: string;
+  DELIVERY_NAME?: string;
   DELIVERY_ADDRESS?: string;
+  DELIVERY_GST_NO?: string;
   DELIVERY_STATE?: string;
   DELIVERY_PIN?: string;
   PRODUCT_QUALITY: string;
@@ -82,6 +85,14 @@ export interface PI {
   NET_AMOUNT: number;
   AUTHORIZED_SIGNATORY: string;
   STATUS: 'RUNNING' | 'COMPLETE';
+  
+  // Extras
+  PAYMENT_TERMS?: string;
+  NOTE?: string;
+  CONSIGNMENT_NOTE?: string;
+  VEHICLE_NO?: string;
+  TRANSPORT_MODE?: string;
+  
   CREATED_DATE?: string;
   // Computed fields
   totalDelivered?: number;

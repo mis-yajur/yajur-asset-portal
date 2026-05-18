@@ -249,6 +249,10 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       const customerName = `M/s ${pi.CUSTOMER_NAME || 'KARWA YARN PVT. LTD.'}`;
       const customerAddress = pi.CUSTOMER_ADDRESS || 'GOPAL BAG, P.O. - BHULLANPUR PAC\nMANDUADIH, VARANASI, PIN - 221108\nUTTAR PRADESH';
       const customerGst = pi.CUSTOMER_GST_NO || '09AAFCA1542F1Z0';
+      
+      const deliveryName = `M/s ${pi.DELIVERY_NAME || pi.CUSTOMER_NAME || 'KARWA YARN PVT. LTD.'}`;
+      const deliveryAddress = pi.DELIVERY_ADDRESS || customerAddress;
+      const deliveryGst = pi.DELIVERY_GST_NO || customerGst;
 
       autoTable(doc, {
         startY: currentY,
@@ -258,7 +262,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
         body: [
           [
             `${customerName}\n${customerAddress}\nGSTIN :\t${customerGst}`,
-            `${customerName}\n${pi.DELIVERY_ADDRESS || customerAddress}\nGSTIN :\t${customerGst}`
+            `${deliveryName}\n${deliveryAddress}\nGSTIN :\t${deliveryGst}`
           ]
         ],
         columnStyles: {
@@ -282,7 +286,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
         head: [['SL.NO', 'PRODUCT / QUALITY', 'Unit/Box', 'Quantity\n( in Kg.)', 'Rate/Kg\n( in Rs.)', 'Total (In Rs.)']],
         headStyles: { fillColor: [245, 245, 245], textColor: [0,0,0], fontStyle: 'bold', halign: 'center', lineWidth: 0.5, lineColor: [0,0,0], fontSize: 9 },
         body: [
-          ['1', `${pi.PRODUCT_QUALITY || 'FLAX YARN - 6 LEA NATURAL'}\nUNPOLISHED IN HANK FORM`, pi.UNIT_COUNT ? pi.UNIT_COUNT.toFixed(2) : '133.00', qty.toFixed(2), rate.toFixed(2), total.toFixed(2)],
+          ['1', `${pi.PRODUCT_QUALITY || 'FLAX YARN - 6 LEA NATURAL\nUNPOLISHED IN HANK FORM'}`, pi.UNIT_COUNT ? pi.UNIT_COUNT.toFixed(2) : '133.00', qty.toFixed(2), rate.toFixed(2), total.toFixed(2)],
           ...Array.from({length: 6}).map(() => ['', '', '', '', '', '']) // Extra blank rows
         ],
         columnStyles: {
@@ -304,6 +308,12 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       const igst = total * 0.05; // 5% IGST usually
       const netAmount = total + cgst + sgst + igst;
       
+      const paymentTerms = pi.PAYMENT_TERMS || '100% advance before dispatch.';
+      const noteStr = pi.NOTE || 'The above quoted price is ex-factory';
+      const consignmentNote = pi.CONSIGNMENT_NOTE || '';
+      const vehicleNo = pi.VEHICLE_NO || '';
+      const transportMode = pi.TRANSPORT_MODE || 'Through Jain Carrying Transport (By Road)';
+
       // Footer Table 1 (Totals)
       autoTable(doc, {
         startY: currentY,
@@ -317,11 +327,11 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
           [{ content: 'Add : IGST', colSpan: 4 }, '5%', igst.toFixed(2)],
           [{ content: 'Other Charges :', colSpan: 5 }, '0.00'],
           [{ content: 'Net Amount : (In Rs.)', colSpan: 5 }, netAmount.toFixed(2)],
-          [{ content: 'Payment Terms :   100% advance before dispatch.', colSpan: 6, styles: { fontStyle: 'bold' } }],
-          [{ content: 'Note : The above quoted price is ex-factory', colSpan: 6, styles: { fontStyle: 'bold' } }],
-          [{ content: 'Consignment Note :', colSpan: 6 }],
-          [{ content: 'Vehicle No. :', colSpan: 3 }, { content: 'Transport Mode: Through Jain Carrying Transport (By Road)', colSpan: 3 }],
-          [{ content: 'Bank Details\nYAJUR FIBRES LIMITED\nBANK :\t\t\tICICI BANK LTD\nBRANCH :\t\tMIDDLETON STREET, KOLKATA-71\nA/C NO :\t\t\t355051000003\nRTGS CODE :\t\tICIC0003550', colSpan: 3, styles: { cellPadding: 2 } }, { content: 'YAJUR FIBRES LIMITED\n\n\n\n\nAuthorised Signatory', colSpan: 3 }]
+          [{ content: `Payment Terms :   ${paymentTerms}`, colSpan: 6, styles: { fontStyle: 'bold' } }],
+          [{ content: `Note : ${noteStr}`, colSpan: 6, styles: { fontStyle: 'bold' } }],
+          [{ content: `Consignment Note : ${consignmentNote}`, colSpan: 6 }],
+          [{ content: `Vehicle No. : ${vehicleNo}`, colSpan: 3 }, { content: `Transport Mode: ${transportMode}`, colSpan: 3 }],
+          [{ content: 'Bank Details\nYAJUR FIBRES LIMITED\nBANK :\t\t\tICICI BANK LTD\nBRANCH :\t\tMIDDLETON STREET, KOLKATA-71\nA/C NO :\t\t\t355051000003\nRTGS CODE :\t\tICIC0003550', colSpan: 3, styles: { cellPadding: 2 } }, { content: `YAJUR FIBRES LIMITED\n\n\n\n\n${pi.AUTHORIZED_SIGNATORY || 'Authorised Signatory'}`, colSpan: 3 }]
         ],
         columnStyles: {
           0: { cellWidth: 15 },
@@ -611,36 +621,120 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-8 ring-1 ring-slate-100 p-6 rounded-3xl bg-slate-50/30">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Party Name (Customer)</label>
-                             <input 
-                                required
-                                placeholder="Enter Customer Name"
-                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
-                                value={currentPI?.CUSTOMER_NAME || ''}
-                                onChange={e => setCurrentEntry({ ...currentPI, CUSTOMER_NAME: e.target.value })}
-                             />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 ring-1 ring-slate-100 p-6 rounded-3xl bg-slate-50/30">
+                    <div className="space-y-4">
+                        <h4 className="text-sm font-black text-primary uppercase tracking-widest border-b border-border-main pb-2">Consignee (Bill To)</h4>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Party Name</label>
+                                <input 
+                                    required
+                                    placeholder="Enter Customer Name"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
+                                    value={currentPI?.CUSTOMER_NAME || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, CUSTOMER_NAME: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Billing Address</label>
+                                <textarea 
+                                    rows={2}
+                                    placeholder="Enter complete address"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40 resize-none"
+                                    value={currentPI?.CUSTOMER_ADDRESS || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, CUSTOMER_ADDRESS: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">GSTIN</label>
+                                <input 
+                                    placeholder="ex: 09AAFCA1542F1Z0"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40 uppercase"
+                                    value={currentPI?.CUSTOMER_GST_NO || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, CUSTOMER_GST_NO: e.target.value })}
+                                />
+                            </div>
                         </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b border-border-main pb-2">
+                          <h4 className="text-sm font-black text-primary uppercase tracking-widest">Delivery (Ship To)</h4>
+                          <button 
+                            type="button" 
+                            className="text-[10px] font-black text-accent uppercase hover:underline"
+                            onClick={() => setCurrentEntry({
+                              ...currentPI,
+                              DELIVERY_NAME: currentPI?.CUSTOMER_NAME || '',
+                              DELIVERY_ADDRESS: currentPI?.CUSTOMER_ADDRESS || '',
+                              DELIVERY_GST_NO: currentPI?.CUSTOMER_GST_NO || ''
+                            })}
+                          >
+                            Copy Consignee
+                          </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Delivery Party Name</label>
+                                <input 
+                                    placeholder="Leave blank if same as consignee"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
+                                    value={currentPI?.DELIVERY_NAME || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, DELIVERY_NAME: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Delivery Address</label>
+                                <textarea 
+                                    rows={2}
+                                    placeholder="Enter delivery address"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40 resize-none"
+                                    value={currentPI?.DELIVERY_ADDRESS || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, DELIVERY_ADDRESS: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Delivery GSTIN</label>
+                                <input 
+                                    placeholder="ex: 09AAFCA1542F1Z0"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40 uppercase"
+                                    value={currentPI?.DELIVERY_GST_NO || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, DELIVERY_GST_NO: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-8 ring-1 ring-slate-100 p-6 rounded-3xl bg-slate-50/30">
+                    <div className="grid grid-cols-1 gap-6">
                         <div className="space-y-2">
-                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Asset Quality / Type</label>
-                             <select 
-                                required
-                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
-                                value={currentPI?.PRODUCT_QUALITY || ''}
-                                onChange={e => setCurrentEntry({ ...currentPI, PRODUCT_QUALITY: e.target.value })}
-                             >
-                                <option value="">Select Material Spec</option>
-                                {products.map(p => (
-                                    <option key={p.QLTY_CODE} value={p.QLTY_NAME}>{p.QLTY_NAME} ({p.QLTY_CODE})</option>
-                                ))}
-                             </select>
+                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Product Quality / Detail</label>
+                             <div className="flex gap-2">
+                               <select 
+                                  className="w-1/3 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40 h-fit"
+                                  value=""
+                                  onChange={e => setCurrentEntry({ ...currentPI, PRODUCT_QUALITY: e.target.value })}
+                               >
+                                  <option value="">Quick Select</option>
+                                  {products.map(p => (
+                                      <option key={p.QLTY_CODE} value={p.QLTY_NAME}>{p.QLTY_NAME} ({p.QLTY_CODE})</option>
+                                  ))}
+                               </select>
+                               <textarea 
+                                  required
+                                  rows={2}
+                                  placeholder="e.g. FLAX YARN - 6 LEA NATURAL&#10;UNPOLISHED IN HANK FORM"
+                                  className="w-2/3 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40 resize-none uppercase"
+                                  value={currentPI?.PRODUCT_QUALITY || ''}
+                                  onChange={e => setCurrentEntry({ ...currentPI, PRODUCT_QUALITY: e.target.value })}
+                               />
+                             </div>
                         </div>
                     </div>
 
                     <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="space-y-2">
                                 <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Target KG</label>
                                 <input 
@@ -670,6 +764,77 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                         setCurrentEntry({ ...currentPI, RATE_PER_UNIT: rate, ITEM_TOTAL: qty * rate, NET_AMOUNT: qty * rate });
                                     }}
                                 />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Total Unit/Box</label>
+                                <input 
+                                    type="number"
+                                    placeholder="133.00"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
+                                    value={currentPI?.UNIT_COUNT || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, UNIT_COUNT: Number(e.target.value) })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 ring-1 ring-slate-100 p-6 rounded-3xl bg-slate-50/30">
+                    <div className="space-y-4">
+                        <h4 className="text-sm font-black text-primary uppercase tracking-widest border-b border-border-main pb-2">Terms & Notes</h4>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Terms</label>
+                                <input 
+                                    placeholder="e.g. 100% advance before dispatch."
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
+                                    value={currentPI?.PAYMENT_TERMS || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, PAYMENT_TERMS: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Note</label>
+                                <input 
+                                    placeholder="e.g. The above quoted price is ex-factory"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
+                                    value={currentPI?.NOTE || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, NOTE: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                        <h4 className="text-sm font-black text-primary uppercase tracking-widest border-b border-border-main pb-2">Dispatch Detail</h4>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Consignment Note</label>
+                                <input 
+                                    placeholder=""
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
+                                    value={currentPI?.CONSIGNMENT_NOTE || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, CONSIGNMENT_NOTE: e.target.value })}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vehicle No.</label>
+                                  <input 
+                                      placeholder=""
+                                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
+                                      value={currentPI?.VEHICLE_NO || ''}
+                                      onChange={e => setCurrentEntry({ ...currentPI, VEHICLE_NO: e.target.value })}
+                                  />
+                              </div>
+                              <div className="space-y-2">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Transport Mode</label>
+                                  <input 
+                                      placeholder="e.g. Through Jain Carrying Transport (By Road)"
+                                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
+                                      value={currentPI?.TRANSPORT_MODE || ''}
+                                      onChange={e => setCurrentEntry({ ...currentPI, TRANSPORT_MODE: e.target.value })}
+                                  />
+                              </div>
                             </div>
                         </div>
                     </div>
