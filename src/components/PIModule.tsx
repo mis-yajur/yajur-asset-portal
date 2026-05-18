@@ -243,12 +243,12 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
         onLog('Export PDF', `Generated PI ${pi.PI_NO}`);
       } else {
         setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null });
-        onNotify('Error', 'Failed to generate PDF', 'error');
+        onNotify('Error', res.error || 'Failed to generate PDF', 'error');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null });
-      onNotify('Error', 'Failed to generate PDF', 'error');
+      onNotify('Error', error.message || 'Failed to generate PDF', 'error');
     }
   };
 
