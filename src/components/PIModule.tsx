@@ -587,11 +587,36 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Party Name</label>
                                 <input 
                                     required
+                                    list="customer-list"
                                     placeholder="Enter Customer Name"
                                     className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
                                     value={currentPI?.CUSTOMER_NAME || ''}
-                                    onChange={e => setCurrentEntry({ ...currentPI, CUSTOMER_NAME: e.target.value })}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        const selectedCustomer = customers.find(c => c.PARTY_NAME === val);
+                                        if (selectedCustomer) {
+                                            const addressParts = [
+                                                selectedCustomer.ADDRESS1, 
+                                                selectedCustomer.ADDRESS2, 
+                                                selectedCustomer.ADDRESS3
+                                            ].filter(Boolean);
+                                            const addressStr = addressParts.join('\n');
+                                            setCurrentEntry({
+                                                ...currentPI,
+                                                CUSTOMER_NAME: selectedCustomer.PARTY_NAME,
+                                                CUSTOMER_ADDRESS: addressStr,
+                                                CUSTOMER_GST_NO: selectedCustomer.GSTIN || ''
+                                            });
+                                        } else {
+                                            setCurrentEntry({ ...currentPI, CUSTOMER_NAME: val });
+                                        }
+                                    }}
                                 />
+                                <datalist id="customer-list">
+                                    {customers.map((c, i) => (
+                                        <option key={`cust-${i}`} value={c.PARTY_NAME} />
+                                    ))}
+                                </datalist>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Billing Address</label>
@@ -635,10 +660,30 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Delivery Party Name</label>
                                 <input 
+                                    list="customer-list"
                                     placeholder="Leave blank if same as consignee"
                                     className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
                                     value={currentPI?.DELIVERY_NAME || ''}
-                                    onChange={e => setCurrentEntry({ ...currentPI, DELIVERY_NAME: e.target.value })}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        const selectedCustomer = customers.find(c => c.PARTY_NAME === val);
+                                        if (selectedCustomer) {
+                                            const addressParts = [
+                                                selectedCustomer.ADDRESS1, 
+                                                selectedCustomer.ADDRESS2, 
+                                                selectedCustomer.ADDRESS3
+                                            ].filter(Boolean);
+                                            const addressStr = addressParts.join('\n');
+                                            setCurrentEntry({
+                                                ...currentPI,
+                                                DELIVERY_NAME: selectedCustomer.PARTY_NAME,
+                                                DELIVERY_ADDRESS: addressStr,
+                                                DELIVERY_GST_NO: selectedCustomer.GSTIN || ''
+                                            });
+                                        } else {
+                                            setCurrentEntry({ ...currentPI, DELIVERY_NAME: val });
+                                        }
+                                    }}
                                 />
                             </div>
                             <div className="space-y-2">

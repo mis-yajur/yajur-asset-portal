@@ -630,8 +630,15 @@ function generatePdfFromTemplate(params) {
   // Replace variables
   newSheet.createTextFinder("<<PROFORMA INVOICE NO>>").replaceAllWith(params.PI_NO || "");
   newSheet.createTextFinder("<<Date>>").replaceAllWith(params.INVOICE_DATE || "");
-  newSheet.createTextFinder("<<Party Name (Customer)>>").replaceAllWith(params.CUSTOMER_NAME || "");
-  newSheet.createTextFinder("<<DELIVERY>>").replaceAllWith(params.DELIVERY_NAME || params.CUSTOMER_NAME || "");
+  
+  const consigneeName = params.CUSTOMER_NAME ? (params.CUSTOMER_NAME.startsWith("M/s") ? params.CUSTOMER_NAME : `M/s ${params.CUSTOMER_NAME}`) : "";
+  const consigneeStr = [consigneeName, params.CUSTOMER_ADDRESS, params.CUSTOMER_GST_NO ? `GSTIN :\t${params.CUSTOMER_GST_NO}` : ""].filter(Boolean).join("\n");
+  newSheet.createTextFinder("<<Party Name (Customer)>>").replaceAllWith(consigneeStr);
+  
+  const deliveryName = params.DELIVERY_NAME ? (params.DELIVERY_NAME.startsWith("M/s") || params.DELIVERY_NAME.startsWith("C/O") ? params.DELIVERY_NAME : `M/s ${params.DELIVERY_NAME}`) : "";
+  const deliveryStr = [deliveryName, params.DELIVERY_ADDRESS, params.DELIVERY_GST_NO ? `GSTIN :\t${params.DELIVERY_GST_NO}` : ""].filter(Boolean).join("\n");
+  newSheet.createTextFinder("<<DELIVERY>>").replaceAllWith(deliveryStr || consigneeStr);
+  
   newSheet.createTextFinder("<<currency>>").replaceAllWith("Rs");
   
   // Line 1
