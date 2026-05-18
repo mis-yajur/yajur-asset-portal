@@ -722,6 +722,7 @@ function generatePdfFromTemplate(params) {
     "<<IGST%>>": params.IGST_PERCENT || "5",
     "<<other_charg": params.OTHER_CHARGES || "0.00",
     "<<other_charges>>": params.OTHER_CHARGES || "0.00",
+    "<<OTHER_CHARGES>>": params.OTHER_CHARGES || "0.00",
     "<<Payment Terms>>": params.PAYMENT_TERMS || " ",
     "<<Note>>": params.NOTE || " ",
     "<<Consignment Note>>": params.CONSIGNMENT_NOTE || " ",
@@ -735,6 +736,16 @@ function generatePdfFromTemplate(params) {
      sig = "Digitally Signed";
   }
   replacements["<<Digitally signed>>"] = sig || " ";
+
+  // Inject Net Amount since there is no placeholder in the template for it
+  let netAmountValue = params.NET_AMOUNT || "0.00";
+  try {
+     const textFinder = newSheet.createTextFinder("Net Amount : (In Rs.)");
+     const found = textFinder.findNext();
+     if(found) {
+        newSheet.getRange(found.getRow(), found.getColumn() + 9).setValue(netAmountValue);
+     }
+  } catch(e) {}
 
   // Extract items
   let items = [];

@@ -229,17 +229,17 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
     return total;
   };
 
-  const [pdfGenerationStatus, setPdfGenerationStatus] = useState<{loading: boolean, pi: any | null, pdfUrl: string | null, pdfId: string | null, pdfDownloadUrl: string | null}>({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null});
+  const [pdfGenerationStatus, setPdfGenerationStatus] = useState<{loading: boolean, pi: any | null, pdfUrl: string | null, pdfId: string | null, pdfDownloadUrl: string | null, error: string | null}>({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null});
 
   const generatePIPdf = async (pi: any) => {
-    setPdfGenerationStatus({ loading: true, pi, pdfUrl: null, pdfId: null, pdfDownloadUrl: null });
+    setPdfGenerationStatus({ loading: true, pi, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null });
     onNotify('Info', 'Generating PDF using template on backend...', 'info');
     try {
       // Use Google Apps Script backend to generate the PDF instead of client-side html2pdf
       const res = await apiCall('generatePdfFromTemplate', pi);
       
       if (res.success && res.data) {
-         setPdfGenerationStatus({ loading: false, pi, pdfUrl: res.data.pdfUrl, pdfId: res.data.pdfId, pdfDownloadUrl: res.data.pdfDownloadUrl });
+         setPdfGenerationStatus({ loading: false, pi, pdfUrl: res.data.pdfUrl, pdfId: res.data.pdfId, pdfDownloadUrl: res.data.pdfDownloadUrl, error: null });
          onNotify('Success', 'PDF generated and saved to Drive successfully', 'success');
          onLog('Export PDF', `Generated PI ${pi.PI_NO} via Drive`);
       } else {
@@ -247,7 +247,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       }
     } catch (error: any) {
       console.error(error);
-      setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null });
+      setPdfGenerationStatus({ loading: false, pi, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: error.message || 'Failed to generate PDF on server.' });
       onNotify('Error', 'Failed to generate PDF on server. Check console for details.', 'error');
     }
   };
@@ -482,10 +482,10 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       )}
 
       {/* PDF Action Modal */}
-      {pdfGenerationStatus.loading || pdfGenerationStatus.pdfUrl ? (
+      {(pdfGenerationStatus.loading || pdfGenerationStatus.pdfUrl || pdfGenerationStatus.error) ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-primary/40 backdrop-blur-md" onClick={() => {
-              if(!pdfGenerationStatus.loading) setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null});
+              if(!pdfGenerationStatus.loading) setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null});
           }} />
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-200">
              <div className="bg-primary text-white p-6">
@@ -494,7 +494,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                         <h3 className="text-xl font-black uppercase tracking-tight">PDF Export</h3>
                     </div>
                     {!pdfGenerationStatus.loading && (
-                        <button onClick={() => setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null})} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                        <button onClick={() => setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null, error: null})} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
                             <X size={20} />
                         </button>
                     )}
@@ -507,6 +507,19 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                         <div className="w-16 h-16 border-4 border-indigo-100 border-t-accent rounded-full animate-spin mb-4" />
                         <h4 className="text-sm font-black text-primary uppercase tracking-widest">Generating Secure PDF...</h4>
                         <p className="text-xs font-bold text-text-dim mt-2">Connecting to Fiscal Mainframe</p>
+                    </div>
+                ) : pdfGenerationStatus.error ? (
+                    <div className="flex flex-col items-center justify-center space-y-6 border border-rose-100 bg-rose-50/50 p-6 rounded-3xl">
+                        <div className="w-16 h-16 bg-rose-100 text-rose-500 rounded-2xl flex items-center justify-center shadow-inner mb-2">
+                            <X size={32} />
+                        </div>
+                        <div>
+                            <h4 className="text-lg font-black text-rose-600 uppercase tracking-tight">Generation Failed</h4>
+                            <p className="text-xs font-bold text-rose-500 mt-2 p-3 bg-white rounded-xl border border-rose-100">{pdfGenerationStatus.error}</p>
+                        </div>
+                        <p className="text-[10px] uppercase font-bold text-slate-400 mt-4 leading-relaxed max-w-xs mx-auto">
+                            Please make sure you have deployed the latest <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600">code.gs</code> script in your Google Apps Script editor.
+                        </p>
                     </div>
                 ) : (
                     <div className="space-y-6">
