@@ -229,17 +229,17 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
     return total;
   };
 
-  const [pdfGenerationStatus, setPdfGenerationStatus] = useState<{loading: boolean, pi: any | null, pdfUrl: string | null, pdfId: string | null}>({loading: false, pi: null, pdfUrl: null, pdfId: null});
+  const [pdfGenerationStatus, setPdfGenerationStatus] = useState<{loading: boolean, pi: any | null, pdfUrl: string | null, pdfId: string | null, pdfDownloadUrl: string | null}>({loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null});
 
   const generatePIPdf = async (pi: any) => {
-    setPdfGenerationStatus({ loading: true, pi, pdfUrl: null, pdfId: null });
+    setPdfGenerationStatus({ loading: true, pi, pdfUrl: null, pdfId: null, pdfDownloadUrl: null });
     onNotify('Info', 'Generating PDF using template on backend...', 'info');
     try {
       // Use Google Apps Script backend to generate the PDF instead of client-side html2pdf
       const res = await apiCall('generatePdfFromTemplate', pi);
       
       if (res.success || res.pdfUrl) {
-         setPdfGenerationStatus({ loading: false, pi, pdfUrl: res.pdfUrl || res.pdfDownloadUrl, pdfId: res.pdfId });
+         setPdfGenerationStatus({ loading: false, pi, pdfUrl: res.pdfUrl, pdfId: res.pdfId, pdfDownloadUrl: res.pdfDownloadUrl });
          onNotify('Success', 'PDF generated and saved to Drive successfully', 'success');
          onLog('Export PDF', `Generated PI ${pi.PI_NO} via Drive`);
       } else {
@@ -247,7 +247,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       }
     } catch (error: any) {
       console.error(error);
-      setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null });
+      setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null, pdfDownloadUrl: null });
       onNotify('Error', 'Failed to generate PDF on server. Check console for details.', 'error');
     }
   };
@@ -525,6 +525,14 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                             >
                                 <FileText size={16} /> Open Document Link
                             </a>
+                            <a 
+                                href={pdfGenerationStatus.pdfDownloadUrl || '#'} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <Download size={16} /> Download PDF
+                            </a>
                             <button 
                                 onClick={() => pdfGenerationStatus.pdfId && sendEmail(pdfGenerationStatus.pdfId, pdfGenerationStatus.pi?.PI_NO)}
                                 className="w-full bg-accent hover:bg-indigo-600 text-white py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-colors shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
@@ -532,7 +540,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                 <Mail size={16} /> Email to mis@yajurfibres.com
                             </button>
                             <a 
-                                href={`https://wa.me/?text=Please%20find%20the%20Proforma%20Invoice%20attached`}
+                                href={`https://wa.me/?text=Please%20find%20the%20Proforma%20Invoice%20attached:%20${encodeURIComponent(pdfGenerationStatus.pdfUrl || '')}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-colors shadow-lg shadow-green-600/20 flex items-center justify-center gap-2"
