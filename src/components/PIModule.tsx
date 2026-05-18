@@ -209,7 +209,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       
       if (res.success) {
         onNotify('Success', `PI record ${piNo} successfully ${isEdit ? 'updated' : 'created'}`, 'success');
-        onLog(isEdit ? 'Update PI' : 'Add PI', `ID: ${piNo}, Qty: ${qty}kg`);
+        onLog(isEdit ? 'Update PI' : 'Add PI', `ID: ${piNo}, Qty: ${totalQty}kg`);
         setIsModalOpen(false);
         setCurrentEntry(null);
         await loadData();
