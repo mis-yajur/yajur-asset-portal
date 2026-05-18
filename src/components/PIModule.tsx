@@ -28,7 +28,7 @@ import {
 import { apiCall } from '../services/api';
 import { cn, formatDate } from '../lib/utils';
 import type { PI, Customer, Product, Notification } from '../types';
-import ProformaPDFContent from './pdf/ProformaPDFContent';
+
 
 interface PIModuleProps {
   onNotify: (title: string, message: string, type?: Notification['type']) => void;
@@ -235,79 +235,31 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
 
   const generatePIPdf = async (pi: any) => {
     setPdfGenerationStatus({ loading: true, pi, pdfUrl: null, pdfId: null });
-    onNotify('Info', 'Generating PDF using template...', 'info');
+    onNotify('Info', 'Generating PDF using template on backend...', 'info');
     try {
-      setTimeout(async () => {
-        const originalGetComputedStyle = window.getComputedStyle;
-        const canvasCtx = document.createElement('canvas').getContext('2d');
-        
-        try {
-          const element = document.getElementById('pdf-template');
-          if (!element) throw new Error('Template element not found');
-
-          // Deep clone the element to modify inline styles without affecting React
-          const clone = element.cloneNode(true) as HTMLElement;
-          const wrapper = document.createElement('div');
-          wrapper.style.position = 'absolute';
-          wrapper.style.top = '-9999px';
-          wrapper.style.left = '-9999px';
-          wrapper.appendChild(clone);
-          document.body.appendChild(wrapper);
-
-          // Convert oklch to hex explicitly via getComputedStyle
-          const allEls = [clone, ...Array.from(clone.querySelectorAll('*'))];
-          const colorProps = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor', 'fill', 'stroke'];
-          
-          allEls.forEach((el) => {
-             const style = originalGetComputedStyle(el);
-             colorProps.forEach(prop => {
-                const val = style[prop as any];
-                if (val && typeof val === 'string' && val.includes('oklch')) {
-                   if (canvasCtx) {
-                      canvasCtx.fillStyle = val;
-                      (el as HTMLElement).style[prop as any] = canvasCtx.fillStyle;
-                   } else {
-                      (el as HTMLElement).style[prop as any] = '#000000';
-                   }
-                }
-             });
-          });
-          
-          const opt = {
-            margin:       [0, 0.2, 0, 0.2], // top, left, bottom, right
-            filename:     `PI_${pi.PI_NO}.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true },
-            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-          };
-
-          const pdfBase64 = await html2pdf().set(opt).from(clone).outputPdf('datauristring');
-          html2pdf().set(opt).from(clone).save();
-          
-          document.body.removeChild(wrapper);
-          
-          setPdfGenerationStatus({ loading: false, pi, pdfUrl: pdfBase64, pdfId: pdfBase64 });
-          onNotify('Success', 'PDF generated successfully', 'success');
-          onLog('Export PDF', `Generated PI ${pi.PI_NO}`);
-        } catch (error: any) {
-           console.error(error);
-           setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null });
-           onNotify('Error', error.message || 'Failed to generate PDF', 'error');
-        }
-      }, 500); // Wait for render
+      // Use Google Apps Script backend to generate the PDF instead of client-side html2pdf
+      const res = await apiCall('generatePdfFromTemplate', pi);
+      
+      if (res.success || res.pdfUrl) {
+         setPdfGenerationStatus({ loading: false, pi, pdfUrl: res.pdfUrl || res.pdfDownloadUrl, pdfId: res.pdfId });
+         onNotify('Success', 'PDF generated and saved to Drive successfully', 'success');
+         onLog('Export PDF', `Generated PI ${pi.PI_NO} via Drive`);
+      } else {
+         throw new Error(res.error || 'Failed to generate PDF');
+      }
     } catch (error: any) {
       console.error(error);
       setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null });
-      onNotify('Error', error.message || 'Failed to generate PDF', 'error');
+      onNotify('Error', 'Failed to generate PDF on server. Check console for details.', 'error');
     }
   };
 
   const sendEmail = async (pdfId: string, piNo: string) => {
     onNotify('Info', 'Sending email...', 'info');
     try {
-      const base64Data = pdfId.split(',')[1];
-      const res = await apiCall('sendEmailWithPdf', { base64: base64Data, emailTo: 'mis@yajurfibres.com', PI_NO: piNo });
-      if(res.success) {
+      // pdfId is now the Google Drive File ID
+      const res = await apiCall('sendEmailWithPdf', { pdfId: pdfId, emailTo: 'mis@yajurfibres.com', PI_NO: piNo });
+      if(res.success || res === "Email sent to mis@yajurfibres.com") {
         onNotify('Success', 'Email sent successfully to mis@yajurfibres.com', 'success');
         onLog('Email PDF', `Emailed PI ${piNo}`);
       } else {
@@ -582,7 +534,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                 <Mail size={16} /> Email to mis@yajurfibres.com
                             </button>
                             <a 
-                                href={`https://wa.me/?text=Please%20find%20the%20Proforma%20Invoice%20attached:%20${encodeURIComponent(pdfGenerationStatus.pdfUrl || '')}`}
+                                href={`https://wa.me/?text=Please%20find%20the%20Proforma%20Invoice%20attached`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-colors shadow-lg shadow-green-600/20 flex items-center justify-center gap-2"
@@ -1147,12 +1099,6 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
         </div>
       )}
 
-      {/* Hidden container for PDF rendering */}
-      <div className="absolute top-[-9999px] left-[-9999px]">
-        {pdfGenerationStatus.loading && pdfGenerationStatus.pi && (
-           <ProformaPDFContent pi={pdfGenerationStatus.pi} />
-        )}
-      </div>
     </div>
   );
 }

@@ -688,73 +688,98 @@ function generatePdfFromTemplate(params) {
   const newSs = SpreadsheetApp.openById(newFile.getId());
   const newSheet = newSs.getSheets()[0];
   
-  // Replace variables
-  newSheet.createTextFinder("<<PROFORMA INVOICE NO>>").replaceAllWith(params.PI_NO || "");
-  newSheet.createTextFinder("<<Date>>").replaceAllWith(params.INVOICE_DATE || "");
+  // Format Date gracefully
+  let formattedDate = params.INVOICE_DATE || "";
+  if(formattedDate) {
+    try {
+      const d = new Date(formattedDate);
+      if(!isNaN(d.getTime())) {
+         const dStr = d.getDate().toString().padStart(2, '0');
+         const mStr = (d.getMonth()+1).toString().padStart(2, '0');
+         formattedDate = `${dStr}-${mStr}-${d.getFullYear()}`;
+      }
+    } catch(e) {}
+  }
   
-  const consigneeName = params.CUSTOMER_NAME ? (params.CUSTOMER_NAME.startsWith("M/s") ? params.CUSTOMER_NAME : `M/s ${params.CUSTOMER_NAME}`) : "";
-  const consigneeStr = [consigneeName, params.CUSTOMER_ADDRESS, params.CUSTOMER_GST_NO ? `GSTIN :\t${params.CUSTOMER_GST_NO}` : ""].filter(Boolean).join("\n");
-  newSheet.createTextFinder("<<Party Name (Customer)>>").replaceAllWith(consigneeStr);
+  // Replacements Map
+  const replacements = {
+    "<<PROFORMA INVOICE NO>>": params.PI_NO || " ",
+    "<<Date>>": formattedDate || " ",
+    "<<Party Name (Customer)>>": [
+         params.CUSTOMER_NAME ? (params.CUSTOMER_NAME.startsWith("M/s") ? params.CUSTOMER_NAME : `M/s ${params.CUSTOMER_NAME}`) : "",
+         params.CUSTOMER_ADDRESS || "", 
+         params.CUSTOMER_GST_NO ? `GSTIN :\t${params.CUSTOMER_GST_NO}` : ""
+    ].filter(Boolean).join("\n") || " ",
+    "<<DELIVERY>>": [
+         params.DELIVERY_NAME ? (params.DELIVERY_NAME.startsWith("M/s") || params.DELIVERY_NAME.startsWith("C/O") ? params.DELIVERY_NAME : `M/s ${params.DELIVERY_NAME}`) : (params.CUSTOMER_NAME ? (params.CUSTOMER_NAME.startsWith("M/s") ? params.CUSTOMER_NAME : `M/s ${params.CUSTOMER_NAME}`) : ""),
+         params.DELIVERY_ADDRESS || params.CUSTOMER_ADDRESS || "", 
+         params.DELIVERY_GST_NO ? `GSTIN :\t${params.DELIVERY_GST_NO}` : (params.CUSTOMER_GST_NO ? `GSTIN :\t${params.CUSTOMER_GST_NO}` : "")
+    ].filter(Boolean).join("\n") || " ",
+    "<<currency>>": params.CURRENCY || "Rs",
+    "<<Delivery Charges >>": params.DELIVERY_CHARGES || "0.00",
+    "<<CGST%>>": params.CGST_PERCENT || "0",
+    "<<SGST%>>": params.SGST_PERCENT || "0",
+    "<<IGST%>>": params.IGST_PERCENT || "5",
+    "<<other_charg": params.OTHER_CHARGES || "0.00",
+    "<<other_charges>>": params.OTHER_CHARGES || "0.00",
+    "<<Payment Terms>>": params.PAYMENT_TERMS || " ",
+    "<<Note>>": params.NOTE || " ",
+    "<<Consignment Note>>": params.CONSIGNMENT_NOTE || " ",
+    "<<Vehicle No>>": params.VEHICLE_NO || " ",
+    "<<Transporat Mode>>": params.TRANSPORT_MODE || " "
+  };
   
-  const deliveryName = params.DELIVERY_NAME ? (params.DELIVERY_NAME.startsWith("M/s") || params.DELIVERY_NAME.startsWith("C/O") ? params.DELIVERY_NAME : `M/s ${params.DELIVERY_NAME}`) : "";
-  const deliveryStr = [deliveryName, params.DELIVERY_ADDRESS, params.DELIVERY_GST_NO ? `GSTIN :\t${params.DELIVERY_GST_NO}` : ""].filter(Boolean).join("\n");
-  newSheet.createTextFinder("<<DELIVERY>>").replaceAllWith(deliveryStr || consigneeStr);
-  
-  newSheet.createTextFinder("<<currency>>").replaceAllWith(params.CURRENCY || "Rs");
-  
-  let items = [];
-  try {
-      items = (typeof params.ITEMS === 'string') ? JSON.parse(params.ITEMS) : (params.ITEMS || []);
-  } catch(e) {}
+  // Handle Signatory - only insert if it's not a base64 string
+  let sig = params.AUTHORIZED_SIGNATORY || "";
+  if(sig.indexOf("data:image") !== -1 || sig.indexOf("http") !== -1) {
+     sig = "Digitally Signed";
+  }
+  replacements["<<Digitally signed>>"] = sig || " ";
 
-  if (items.length === 0) {
-      items.push({
-          PRODUCT_QUALITY: params.PRODUCT_QUALITY || "",
-          UNIT_COUNT: params.UNIT_COUNT || "",
-          QUANTITY_KG: params.QUANTITY_KG || "",
-          RATE_PER_UNIT: params.RATE_PER_UNIT || ""
-      });
+  // Extract items
+  let items = [];
+  try { items = (typeof params.ITEMS === 'string') ? JSON.parse(params.ITEMS) : (params.ITEMS || []); } catch(e) {}
+  if (!items || items.length === 0) {
+      items.push({ PRODUCT_QUALITY: params.PRODUCT_QUALITY || "", UNIT_COUNT: params.UNIT_COUNT || "", QUANTITY_KG: params.QUANTITY_KG || "", RATE_PER_UNIT: params.RATE_PER_UNIT || "" });
   }
 
+  // Populate dynamic items rows (1 to 7)
+  const fn = (val) => val ? Number(val).toFixed(2) : " ";
   for(let i=1; i<=7; i++) {
     const item = items[i-1];
-    if (item) {
-      newSheet.createTextFinder(`<<SL${i}>>`).replaceAllWith(String(i));
-      newSheet.createTextFinder(`<<PRODUCT / QUALITY${i}>>`).replaceAllWith(item.PRODUCT_QUALITY || "");
-      newSheet.createTextFinder(`<<Unit${i}>>`).replaceAllWith(item.UNIT_COUNT ? String(item.UNIT_COUNT) : "");
-      newSheet.createTextFinder(`<<Quantity${i}>>`).replaceAllWith(item.QUANTITY_KG ? String(item.QUANTITY_KG) : "");
-      newSheet.createTextFinder(`<<Rate${i}>>`).replaceAllWith(item.RATE_PER_UNIT ? String(item.RATE_PER_UNIT) : "");
+    if (item && item.PRODUCT_QUALITY) {
+      replacements[`<<SL${i}>>`] = String(i);
+      replacements[`<<PRODUCT / QUALITY${i}>>`] = item.PRODUCT_QUALITY || " ";
+      replacements[`<<Unit${i}>>`] = item.UNIT_COUNT ? String(item.UNIT_COUNT) : " ";
+      replacements[`<<Quantity${i}>>`] = fn(item.QUANTITY_KG);
+      replacements[`<<Rate${i}>>`] = fn(item.RATE_PER_UNIT);
     } else {
-      newSheet.createTextFinder(`<<SL${i}>>`).replaceAllWith("");
-      newSheet.createTextFinder(`<<PRODUCT / QUALITY${i}>>`).replaceAllWith("");
-      newSheet.createTextFinder(`<<Unit${i}>>`).replaceAllWith("");
-      newSheet.createTextFinder(`<<Quantity${i}>>`).replaceAllWith("");
-      newSheet.createTextFinder(`<<Rate${i}>>`).replaceAllWith("");
+      replacements[`<<SL${i}>>`] = " ";
+      replacements[`<<PRODUCT / QUALITY${i}>>`] = " ";
+      replacements[`<<Unit${i}>>`] = " ";
+      replacements[`<<Quantity${i}>>`] = " ";
+      replacements[`<<Rate${i}>>`] = " ";
     }
   }
-  
-  newSheet.createTextFinder("<<Delivery Charges >>").replaceAllWith(params.DELIVERY_CHARGES || "0.00");
-  newSheet.createTextFinder("<<CGST%>>").replaceAllWith(params.CGST_PERCENT || "0");
-  newSheet.createTextFinder("<<SGST%>>").replaceAllWith(params.SGST_PERCENT || "0");
-  newSheet.createTextFinder("<<IGST%>>").replaceAllWith(params.IGST_PERCENT || "5");
-  newSheet.createTextFinder("<<other_charges>>").replaceAllWith(params.OTHER_CHARGES || "0.00");
-  newSheet.createTextFinder("<<Payment Terms>>").replaceAllWith(params.PAYMENT_TERMS || "");
-  newSheet.createTextFinder("<<Note>>").replaceAllWith(params.NOTE || "");
-  newSheet.createTextFinder("<<Consignment Note>>").replaceAllWith(params.CONSIGNMENT_NOTE || "");
-  newSheet.createTextFinder("<<Vehicle No>>").replaceAllWith(params.VEHICLE_NO || "");
-  newSheet.createTextFinder("<<Transporat Mode>>").replaceAllWith(params.TRANSPORT_MODE || "");
-  newSheet.createTextFinder("<<Digitally signed>>").replaceAllWith(params.AUTHORIZED_SIGNATORY || "");
+
+  // Apply replacements iteratively
+  for (const key in replacements) {
+     let finder = newSheet.createTextFinder(key);
+     // To handle possible edge cases we loop, but replaceAllWith usually handles it
+     finder.replaceAllWith(replacements[key] || " ");
+  }
   
   SpreadsheetApp.flush();
   
-  const blob = newFile.getAs(MimeType.PDF);
-  blob.setName(`PI_${params.PI_NO || 'Untitled'}.pdf`);
+  // Export PDF 
+  const url = newSs.getUrl().replace(/edit$/, '') + 'export?exportFormat=pdf&format=pdf&size=letter&portrait=true&fitw=true&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false';
+  const token = ScriptApp.getOAuthToken();
+  const response = UrlFetchApp.fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+  const blob = response.getBlob().setName(`PI_${params.PI_NO || 'Untitled'}.pdf`);
   const finalPdf = destFolder.createFile(blob);
   
-  // Clean up template copy
+  // Clean up
   newFile.setTrashed(true);
-  
-  // Set permissions
   finalPdf.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   
   return {

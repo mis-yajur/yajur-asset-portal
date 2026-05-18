@@ -102,15 +102,15 @@ export default function ProformaPDFContent({ pi }: Props) {
         </div>
 
         {/* Table */}
-        <table className="w-full text-[11px] leading-tight" style={{ borderCollapse: 'collapse' }}>
+        <table className="w-full text-[11px] leading-tight border-b-[1.5px] border-black" style={{ borderCollapse: 'collapse' }}>
           <thead>
-            <tr className="border-b-[1.5px] border-black font-black text-center">
+            <tr className="border-[1.5px] border-black font-black text-center">
               <th className="border-r-[1.5px] border-black p-2 w-[8%]">SL.NO</th>
               <th className="border-r-[1.5px] border-black p-2 text-left">PRODUCT / QUALITY</th>
               <th className="border-r-[1.5px] border-black p-2 w-[12%]">Unit/Box</th>
               <th className="border-r-[1.5px] border-black p-2 w-[15%]">Quantity<br/>( in Kg.)</th>
-              <th className="border-r-[1.5px] border-black p-2 w-[15%]">Rate/Kg<br/>( in {currencyText}.)</th>
-              <th className="p-2 w-[15%]">Total (In {currencySymbol})</th>
+              <th className="border-r-[1.5px] border-black p-2 w-[15%]">Rate/Kg<br/>{currencySymbol}</th>
+              <th className="p-2 w-[15%] border-black">Total<br/>{currencySymbol}</th>
             </tr>
           </thead>
           <tbody>
@@ -121,10 +121,10 @@ export default function ProformaPDFContent({ pi }: Props) {
                // Apply bottom border only to the last item
                const isLast = i === items.length - 1;
                return (
-                 <tr className={`${isLast ? 'border-b-[1.5px]' : ''} border-black`} key={i}>
+                 <tr className={`${isLast ? 'border-b-[1.5px]' : ''} border-black font-bold`} key={i}>
                    <td className={`border-r-[1.5px] border-black px-2 py-4 text-center align-top ${isLast ? 'h-[150px]' : ''}`}>{i+1}</td>
-                   <td className="border-r-[1.5px] border-black px-2 py-4 align-top font-bold">{item.PRODUCT_QUALITY}</td>
-                   <td className="border-r-[1.5px] border-black px-2 py-4 text-right align-top">{item.UNIT_COUNT ? Number(item.UNIT_COUNT).toFixed(2) : ''}</td>
+                   <td className="border-r-[1.5px] border-black px-2 py-4 align-top">{item.PRODUCT_QUALITY}</td>
+                   <td className="border-r-[1.5px] border-black px-2 py-4 text-right align-top break-all">{item.UNIT_COUNT ? item.UNIT_COUNT : ''}</td>
                    <td className="border-r-[1.5px] border-black px-2 py-4 text-right align-top">{q ? q.toFixed(2) : ''}</td>
                    <td className="border-r-[1.5px] border-black px-2 py-4 text-right align-top">{r ? r.toFixed(2) : ''}</td>
                    <td className="px-2 py-4 text-right align-top">{t ? t.toFixed(2) : ''}</td>
@@ -134,63 +134,113 @@ export default function ProformaPDFContent({ pi }: Props) {
              
              {/* Total Row */}
              <tr className="border-b-[1.5px] border-black font-black">
-               <td colSpan={2} className="border-r-[1.5px] border-black px-2 py-2 text-right">TOTAL</td>
-               <td className="border-r-[1.5px] border-black py-2"></td>
+               <td colSpan={2} className="border-r-[1.5px] border-black px-2 py-2 text-left">TOTAL :</td>
+               <td className="border-r-[1.5px] border-black py-2 px-2 text-right">0.00</td>
                <td className="border-r-[1.5px] border-black px-2 py-2 text-right">{totalQty.toFixed(2)}</td>
                <td className="border-r-[1.5px] border-black py-2"></td>
                <td className="px-2 py-2 text-right">{totalAmount.toFixed(2)}</td>
+             </tr>
+
+             {/* Additional Rows */}
+             <tr className="border-b-[1.5px] border-black font-bold">
+               <td colSpan={2} className="border-r-[1.5px] border-black px-2 py-1">Add : Delivery Charges</td>
+               <td className="border-r-[1.5px] border-black px-2 py-1 font-black text-center">To Pay</td>
+               <td className="border-r-[1.5px] border-black px-2 py-1"></td>
+               <td className="border-r-[1.5px] border-black px-2 py-1 text-right">Delivery Charges &gt;&gt;</td>
+               <td className="px-2 py-1 text-right">0.00</td>
+             </tr>
+
+             <tr className="border-b-[1.5px] border-black font-bold">
+               <td colSpan={5} className="border-r-[1.5px] border-black px-2 py-1">Total Amount Before Tax :</td>
+               <td className="px-2 py-1 text-right">{(totalAmount).toFixed(2)}</td>
+             </tr>
+
+             <tr className="border-b-[1.5px] border-black font-bold">
+               <td colSpan={4} className="border-r-[1.5px] border-black px-2 py-1">Add : CGST</td>
+               <td className="border-r-[1.5px] border-black px-2 py-1 text-center">&lt;&lt;CGST%&gt;&gt;</td>
+               <td className="px-2 py-1 text-right"></td>
+             </tr>
+
+             <tr className="border-b-[1.5px] border-black font-bold">
+               <td colSpan={4} className="border-r-[1.5px] border-black px-2 py-1">Add : SGST</td>
+               <td className="border-r-[1.5px] border-black px-2 py-1 text-center">&lt;&lt;SGST%&gt;&gt;</td>
+               <td className="px-2 py-1 text-right"></td>
+             </tr>
+
+             <tr className="border-b-[1.5px] border-black font-bold">
+               <td colSpan={4} className="border-r-[1.5px] border-black px-2 py-1">Add : IGST</td>
+               <td className="border-r-[1.5px] border-black px-2 py-1 text-center">&lt;&lt;IGST%&gt;&gt;</td>
+               <td className="px-2 py-1 text-right"></td>
+             </tr>
+
+             <tr className="border-b-[1.5px] border-black font-bold">
+               <td colSpan={4} className="border-r-[1.5px] border-black px-2 py-1">Other Charges :</td>
+               <td className="border-r-[1.5px] border-black px-2 py-1 text-right">&lt;&lt;other_charg</td>
+               <td className="px-2 py-1 text-right"></td>
+             </tr>
+
+             <tr className="border-b-[1.5px] border-black font-bold">
+               <td colSpan={5} className="border-r-[1.5px] border-black px-2 py-1">Net Amount : (In Rs.)</td>
+               <td className="px-2 py-1 text-right">{(pi.NET_AMOUNT || totalAmount).toFixed(2)}</td>
+             </tr>
+
+             {/* Footer Sections */}
+             <tr className="border-b-[1.5px] border-black font-bold">
+               <td className="border-r-[1.5px] border-black px-2 py-1">Payment</td>
+               <td colSpan={5} className="px-2 py-1">{pi.PAYMENT_TERMS || '<<Payment Terms>>'}</td>
+             </tr>
+             
+             <tr className="border-b-[1.5px] border-black font-bold">
+               <td className="border-r-[1.5px] border-black px-2 py-1">Note :</td>
+               <td colSpan={5} className="px-2 py-1">{pi.NOTE || '<<Note>>'}</td>
+             </tr>
+
+             <tr className="border-b-[1.5px] border-black font-bold">
+               <td colSpan={2} className="border-r-[1.5px] border-black px-2 py-1">Consignment Note : {pi.CONSIGNMENT_NOTE || '<<Consignment Note>>'}</td>
+               <td colSpan={4} className="px-2 py-1"></td>
+             </tr>
+
+             <tr className="border-b-[1.5px] border-black font-bold">
+               <td colSpan={2} className="border-r-[1.5px] border-black px-2 py-1">Vehicle No. : {pi.VEHICLE_NO || '<<Vehicle No>>'}</td>
+               <td colSpan={4} className="px-2 py-1">Transporat Mode: {pi.TRANSPORT_MODE || '<<Transporat Mode>>'}</td>
              </tr>
           </tbody>
         </table>
 
         {/* Footer info: Bank Details & Signatory */}
-        <div className="flex min-h-[120px]">
+        <div className="flex h-[180px]">
            {/* Details block */}
-           <div className="w-[70%] border-r-[1.5px] border-black p-2 space-y-3">
-             {/* Dynamic fields */}
-             {pi.PAYMENT_TERMS && (
-               <div className="flex gap-2">
-                 <div className="w-32 font-bold whitespace-nowrap">Payment Terms</div>
-                 <div className="font-bold">: {pi.PAYMENT_TERMS}</div>
-               </div>
-             )}
-             {pi.NOTE && (
-               <div className="flex gap-2">
-                 <div className="w-32 font-bold whitespace-nowrap">Note</div>
-                 <div className="font-bold">: {pi.NOTE}</div>
-               </div>
-             )}
-             {pi.TRANSPORT_MODE && (
-               <div className="flex gap-2">
-                 <div className="w-32 font-bold whitespace-nowrap">Transport Mode</div>
-                 <div className="font-bold">: {pi.TRANSPORT_MODE}</div>
-               </div>
-             )}
-
-             <div className="mt-4 pt-4 border-t border-black/30">
-               <div className="font-bold">BANK DETAILS : HDFC BANK LTD.</div>
-               <div className="flex gap-2 mt-1"><div className="w-24">A/c No.</div><div>: 50200057074211</div></div>
-               <div className="flex gap-2"><div className="w-24">IFSC Code</div><div>: HDFC0000008</div></div>
-               <div className="flex gap-2"><div className="w-24">Branch</div><div>: CENTRAL PLAZA, KOLKATA</div></div>
+           <div className="w-[65%] border-r-[1.5px] border-black p-2 flex flex-col justify-between font-bold">
+             <div>
+               <div className="underline mb-1">Bank Details</div>
+               <div className="uppercase">YAJUR FIBRES LIMITED</div>
+               <table className="mt-1 w-full text-[11px]">
+                 <tbody>
+                   <tr><td className="w-24">BANK</td><td>ICICI BANK LTD</td></tr>
+                   <tr><td>BRANCH :</td><td>MIDDLETON STREET, KOLKATA-71</td></tr>
+                   <tr><td>A/C NO</td><td>355051000003</td></tr>
+                   <tr><td>RTGS CODE :</td><td>ICIC0003550</td></tr>
+                 </tbody>
+               </table>
              </div>
            </div>
            
            {/* Signatory block */}
-           <div className="w-[30%] flex flex-col items-center justify-end p-2 relative">
-             <div className="text-center font-bold absolute top-2 w-full">For YAJUR FIBRES LIMITED</div>
+           <div className="w-[35%] flex flex-col justify-between p-2 relative font-bold">
+             <div className="uppercase pb-1">YAJUR FIBRES LIMITED</div>
              
              {/* Signature Image or Text */}
-             <div className="mt-10 mb-2 h-16 flex items-center justify-center w-full">
+             <div className="flex items-center justify-center flex-1 w-full">
                {(pi.AUTHORIZED_SIGNATORY?.startsWith('http') || pi.AUTHORIZED_SIGNATORY?.startsWith('data:image')) ? (
-                 <img src={pi.AUTHORIZED_SIGNATORY} alt="Signature" className="max-h-16 object-contain mix-blend-multiply" crossOrigin="anonymous" />
+                 <img src={pi.AUTHORIZED_SIGNATORY} alt="Signature" className="max-h-24 max-w-full object-contain mix-blend-multiply" crossOrigin="anonymous" />
                ) : pi.AUTHORIZED_SIGNATORY ? (
-                 <span className="font-black text-[#dc424e] border-b border-[#dc424e] pb-1 tracking-widest">{pi.AUTHORIZED_SIGNATORY}</span>
+                 <span className="font-black text-[#dc424e] border-[#dc424e] tracking-widest">{pi.AUTHORIZED_SIGNATORY}</span>
                ) : (
-                 <span className="text-slate-400 italic">Digitally Signed</span>
+                 <span>&lt;&lt;Digitally signed&gt;&gt;</span>
                )}
              </div>
 
-             <div className="font-bold text-center mt-auto w-full border-t border-black/20 pt-1">
+             <div className="w-full">
                Authorised Signatory
              </div>
            </div>
@@ -198,8 +248,8 @@ export default function ProformaPDFContent({ pi }: Props) {
       </div>
       
       {/* Subject to Kolkata info */}
-      <div className="text-center text-[10px] italic mt-1 font-semibold">
-        "SUBJECT TO KOLKATA JURISDICTION"
+      <div className="mt-2 font-bold text-left ml-2" style={{ fontSize: '10px' }}>
+        Regd . Office : 5, MIDDLETON STREET, KOLKATA - 700071, WEST BENGAL, INDIA, M - 9903862793
       </div>
     </div>
   );
