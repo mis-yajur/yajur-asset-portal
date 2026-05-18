@@ -19,7 +19,8 @@ import {
   ChevronLeft,
   ChevronRight,
   IndianRupee,
-  Archive
+  Archive,
+  CalendarDays
 } from 'lucide-react';
 import { apiCall } from '../services/api';
 import { cn, formatDate } from '../lib/utils';
@@ -210,73 +211,134 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
   const generatePIPdf = (pi: any) => {
     try {
       const doc = new jsPDF();
-      
-      const margin = 14;
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 10;
       
-      // Header
-      doc.setFontSize(22);
-      doc.setFont("helvetica", "bold");
-      doc.text("PROFORMA INVOICE", pageWidth / 2, margin + 10, { align: "center" });
+      let currentY = margin;
       
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      
-      // Seller Info
-      doc.setFont("helvetica", "bold");
-      doc.text(pi.SELLER_NAME || "Yajur Lifting", margin, margin + 25);
-      doc.setFont("helvetica", "normal");
-      if (pi.SELLER_GSTIN) doc.text(`GSTIN: ${pi.SELLER_GSTIN}`, margin, margin + 30);
-      if (pi.SELLER_CIN) doc.text(`CIN: ${pi.SELLER_CIN}`, margin, margin + 35);
-      
-      // PI Info
-      doc.setFont("helvetica", "bold");
-      doc.text("PI Details", pageWidth - margin - 60, margin + 25);
-      doc.setFont("helvetica", "normal");
-      doc.text(`PI No: ${pi.PI_NO}`, pageWidth - margin - 60, margin + 30);
-      doc.text(`Date: ${formatDate(pi.INVOICE_DATE || new Date())}`, pageWidth - margin - 60, margin + 35);
-      
-      // Customer Info
-      doc.setFont("helvetica", "bold");
-      // Requested by user -> "Part Name" is Party Name
-      doc.text("Bill To (Party Name):", margin, margin + 50);
-      doc.setFont("helvetica", "normal");
-      doc.text(pi.CUSTOMER_NAME || "", margin, margin + 55);
-      if(pi.CUSTOMER_GST_NO) doc.text(`GSTIN: ${pi.CUSTOMER_GST_NO}`, margin, margin + 60);
-      
-      // Delivery Info
-      doc.setFont("helvetica", "bold");
-      doc.text("Ship To:", pageWidth - margin - 60, margin + 50);
-      doc.setFont("helvetica", "normal");
-      const addressLines = doc.splitTextToSize(pi.DELIVERY_ADDRESS || "As per instructions", 50);
-      doc.text(addressLines, pageWidth - margin - 60, margin + 55);
-      
-      // Table
+      // PROFORMA INVOICE Title
       autoTable(doc, {
-        startY: margin + Math.max(75, 55 + (addressLines.length * 5)),
-        headStyles: { fillColor: [79, 70, 229] }, // Accent color
-        head: [['Part Name / Quality', 'Quantity (KG)', 'Unit Count', 'Rate', 'Amount']],
-        body: [
-          [
-            pi.PRODUCT_QUALITY || 'N/A', 
-            `${(Number(pi.QUANTITY_KG) || 0).toLocaleString()} kg`, 
-            pi.UNIT_COUNT || 0,
-            `${(Number(pi.RATE_PER_UNIT) || 0).toLocaleString()}`, 
-            `${(Number(pi.ITEM_TOTAL) || Number(pi.NET_AMOUNT) || 0).toLocaleString()}`
-          ]
-        ],
-        foot: [['', '', '', 'Total (Rs)', `${(Number(pi.NET_AMOUNT) || Number(pi.ITEM_TOTAL) || 0).toLocaleString()}`]],
-        footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0,0,0] },
+        startY: currentY,
+        margin: { left: margin, right: margin },
+        head: [['PROFORMA INVOICE']],
+        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center', lineWidth: 0.5, lineColor: [0,0,0], fontSize: 11 },
         theme: 'grid'
       });
+      currentY = (doc as any).lastAutoTable.finalY;
+
+      // Seller Info Block
+      autoTable(doc, {
+        startY: currentY,
+        margin: { left: margin, right: margin },
+        body: [
+          ['', "YAJUR FIBRES LIMITED\n5, MIDDLETON STREET, RUSSEL STREET AREA\nKOLKATA, PIN - 700071, WEST BENGAL, INDIA\nCONTACT NO. +91-9903862793\nE-mail : sales@yajurfibres.com\nCIN : U17100WB1980PLC032918\nGSTIN : 19AAECS2882B3ZB", "European Flax.\nPremium linen fiber\nCertificate No: BVFR14492922\n\nPROFORMA INVOICE NO : \n" + pi.PI_NO + "\nDATE : " + formatDate(pi.INVOICE_DATE || new Date())]
+        ],
+        columnStyles: {
+          0: { cellWidth: 40, halign: 'center', valign: 'middle' }, // Logo area
+          1: { cellWidth: 95, halign: 'center', fontSize: 8 },
+          2: { cellWidth: 55, halign: 'left', fontSize: 9 }
+        },
+        theme: 'grid',
+        styles: { textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 }
+      });
       
-      // Signature
-      const finalY = (doc as any).lastAutoTable.finalY || margin + 100;
+      currentY = (doc as any).lastAutoTable.finalY;
       
+      // CONSIGNEE & DELIVERY
+      const customerName = `M/s ${pi.CUSTOMER_NAME || 'KARWA YARN PVT. LTD.'}`;
+      const customerAddress = pi.CUSTOMER_ADDRESS || 'GOPAL BAG, P.O. - BHULLANPUR PAC\nMANDUADIH, VARANASI, PIN - 221108\nUTTAR PRADESH';
+      const customerGst = pi.CUSTOMER_GST_NO || '09AAFCA1542F1Z0';
+
+      autoTable(doc, {
+        startY: currentY,
+        margin: { left: margin, right: margin },
+        head: [['CONSIGNEE', 'DELIVERY']],
+        headStyles: { fillColor: [245, 245, 245], textColor: [0,0,0], fontStyle: 'bold', halign: 'center', lineWidth: 0.5, lineColor: [0,0,0] },
+        body: [
+          [
+            `${customerName}\n${customerAddress}\nGSTIN :\t${customerGst}`,
+            `${customerName}\n${pi.DELIVERY_ADDRESS || customerAddress}\nGSTIN :\t${customerGst}`
+          ]
+        ],
+        columnStyles: {
+          0: { cellWidth: (pageWidth - 2*margin)/2, fontSize: 9 },
+          1: { cellWidth: (pageWidth - 2*margin)/2, fontSize: 9 }
+        },
+        theme: 'grid',
+        styles: { textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 }
+      });
+      
+      currentY = (doc as any).lastAutoTable.finalY;
+      
+      const qty = Number(pi.QUANTITY_KG) || 0;
+      const rate = Number(pi.RATE_PER_UNIT) || 0;
+      const total = qty * rate;
+      
+      // Products Table
+      autoTable(doc, {
+        startY: currentY,
+        margin: { left: margin, right: margin },
+        head: [['SL.NO', 'PRODUCT / QUALITY', 'Unit/Box', 'Quantity\n( in Kg.)', 'Rate/Kg\n( in Rs.)', 'Total (In Rs.)']],
+        headStyles: { fillColor: [245, 245, 245], textColor: [0,0,0], fontStyle: 'bold', halign: 'center', lineWidth: 0.5, lineColor: [0,0,0], fontSize: 9 },
+        body: [
+          ['1', `${pi.PRODUCT_QUALITY || 'FLAX YARN - 6 LEA NATURAL'}\nUNPOLISHED IN HANK FORM`, pi.UNIT_COUNT ? pi.UNIT_COUNT.toFixed(2) : '133.00', qty.toFixed(2), rate.toFixed(2), total.toFixed(2)],
+          ...Array.from({length: 6}).map(() => ['', '', '', '', '', '']) // Extra blank rows
+        ],
+        columnStyles: {
+          0: { cellWidth: 15, halign: 'center' },
+          1: { cellWidth: 65 },
+          2: { cellWidth: 25, halign: 'right' },
+          3: { cellWidth: 25, halign: 'right' },
+          4: { cellWidth: 25, halign: 'right' },
+          5: { cellWidth: 35, halign: 'right' }
+        },
+        theme: 'grid',
+        styles: { textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, fontSize: 9, minCellHeight: 8 }
+      });
+      
+      currentY = (doc as any).lastAutoTable.finalY;
+      
+      const cgst = 0;
+      const sgst = 0;
+      const igst = total * 0.05; // 5% IGST usually
+      const netAmount = total + cgst + sgst + igst;
+      
+      // Footer Table 1 (Totals)
+      autoTable(doc, {
+        startY: currentY,
+        margin: { left: margin, right: margin },
+        body: [
+          [{ content: 'TOTAL :', colSpan: 2 }, pi.UNIT_COUNT ? pi.UNIT_COUNT.toFixed(2) : '133.00', qty.toFixed(2), '', total.toFixed(2)],
+          [{ content: 'Add : Delivery Charges\t\t\t\t\t\t\t\tTo Pay', colSpan: 5 }, '0.00'],
+          [{ content: 'Total Amount Before Tax :', colSpan: 5 }, total.toFixed(2)],
+          [{ content: 'Add : CGST', colSpan: 5 }, cgst.toFixed(2)],
+          [{ content: 'Add : SGST', colSpan: 5 }, sgst.toFixed(2)],
+          [{ content: 'Add : IGST', colSpan: 4 }, '5%', igst.toFixed(2)],
+          [{ content: 'Other Charges :', colSpan: 5 }, '0.00'],
+          [{ content: 'Net Amount : (In Rs.)', colSpan: 5 }, netAmount.toFixed(2)],
+          [{ content: 'Payment Terms :   100% advance before dispatch.', colSpan: 6, styles: { fontStyle: 'bold' } }],
+          [{ content: 'Note : The above quoted price is ex-factory', colSpan: 6, styles: { fontStyle: 'bold' } }],
+          [{ content: 'Consignment Note :', colSpan: 6 }],
+          [{ content: 'Vehicle No. :', colSpan: 3 }, { content: 'Transport Mode: Through Jain Carrying Transport (By Road)', colSpan: 3 }],
+          [{ content: 'Bank Details\nYAJUR FIBRES LIMITED\nBANK :\t\t\tICICI BANK LTD\nBRANCH :\t\tMIDDLETON STREET, KOLKATA-71\nA/C NO :\t\t\t355051000003\nRTGS CODE :\t\tICIC0003550', colSpan: 3, styles: { cellPadding: 2 } }, { content: 'YAJUR FIBRES LIMITED\n\n\n\n\nAuthorised Signatory', colSpan: 3 }]
+        ],
+        columnStyles: {
+          0: { cellWidth: 15 },
+          1: { cellWidth: 65 },
+          2: { cellWidth: 25, halign: 'right' },
+          3: { cellWidth: 25, halign: 'right' },
+          4: { cellWidth: 25, halign: 'right' },
+          5: { cellWidth: 35, halign: 'right' }
+        },
+        theme: 'grid',
+        styles: { textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, fontSize: 9 }
+      });
+      
+      // Add text at bottom
+      doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
-      doc.text(`For ${pi.SELLER_NAME || "Yajur Lifting"}`, pageWidth - margin, finalY + 30, { align: "right" });
-      doc.setFont("helvetica", "normal");
-      doc.text("Authorized Signatory", pageWidth - margin, finalY + 45, { align: "right" });
+      doc.text("Regd . Office : 5, MIDDLETON STREET, KOLKATA - 700071, WEST BENGAL, INDIA, M - 9903862793", margin, pageHeight - 15);
       
       doc.save(`PI_${pi.PI_NO}.pdf`);
       onNotify('Success', 'PDF generated successfully', 'success');
@@ -331,149 +393,125 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
         </div>
       </div>
 
-      {/* Grid of PIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading ? (
-            [1,2,3,4,5,6].map(i => (
-                <div key={i} className="bg-surface-card rounded-custom border border-border-main p-6 h-48 animate-pulse shadow-sm" />
-            ))
-        ) : paginatedData.length > 0 ? (
-            paginatedData.map(pi => {
-                const piNo = String(pi.PI_NO || '').trim();
-                const totalDelivered = liftingMap[piNo]?.delivered || 0;
-                const progress = (totalDelivered / (pi.QUANTITY_KG || 1)) * 100;
-                const remaining = (pi.QUANTITY_KG || 0) - totalDelivered;
-                const isPracticallyComplete = remaining <= 100 && remaining > 0;
-                
-                return (
-                    <div key={pi.PI_NO} className="bg-surface-card rounded-custom border border-border-main p-6 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between border-l-4 border-l-primary/10 hover:border-l-accent">
-                        <div>
-                            <div className="flex items-start justify-between mb-4">
-                                <div>
-                                    <h4 className="text-base font-black text-primary uppercase tracking-tight">{pi.PI_NO}</h4>
-                                    <span className="text-xs font-bold text-text-dim uppercase tracking-widest">{formatDate(pi.INVOICE_DATE)}</span>
-                                </div>
-                                <div className="flex flex-col items-end gap-1">
-                                    <span className={cn(
-                                        "px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-widest",
-                                        pi.STATUS === 'COMPLETE' || isPracticallyComplete ? "bg-teal-100 text-teal-700" : "bg-blue-100 text-blue-700"
-                                    )}>
-                                        {isPracticallyComplete ? 'NEAR COMPLETE' : pi.STATUS}
-                                    </span>
-                                    {isPracticallyComplete && <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Under 100kg Rule</div>}
-                                </div>
-                            </div>
+      {/* Table of PIs */}
+      <div className="bg-surface-card rounded-[2rem] border border-border-main shadow-sm overflow-hidden">
+        <div className="overflow-x-auto min-h-[400px]">
+          <table className="w-full text-left border-collapse min-w-[1000px]">
+            <thead>
+              <tr className="border-b-2 border-border-main">
+                <th className="py-4 text-[11px] font-black text-text-dim uppercase tracking-widest px-5 bg-surface-muted/30">PI Sequence</th>
+                <th className="py-4 text-[11px] font-black text-text-dim uppercase tracking-widest px-5 bg-surface-muted/30">Party & Quality</th>
+                <th className="py-4 text-[11px] font-black text-text-dim uppercase tracking-widest px-5 text-right bg-surface-muted/30">Contract</th>
+                <th className="py-4 text-[11px] font-black text-text-dim uppercase tracking-widest px-8 text-center bg-surface-muted/30 w-1/4">Clearance</th>
+                <th className="py-4 text-[11px] font-black text-text-dim uppercase tracking-widest px-5 text-right bg-surface-muted/30">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-main">
+              {isLoading ? (
+                [1,2,3,4,5].map(i => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-5 py-6"><div className="h-4 bg-slate-100 rounded w-3/4"></div></td>
+                    <td className="px-5 py-6"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
+                    <td className="px-5 py-6"><div className="h-4 bg-slate-100 rounded w-full"></div></td>
+                    <td className="px-5 py-6"><div className="h-4 bg-slate-100 rounded w-full"></div></td>
+                    <td className="px-5 py-6"><div className="h-4 bg-slate-100 rounded w-1/4 ml-auto"></div></td>
+                  </tr>
+                ))
+              ) : paginatedData.length > 0 ? (
+                paginatedData.map(pi => {
+                  const piNo = String(pi.PI_NO || '').trim();
+                  const totalDelivered = liftingMap[piNo]?.delivered || 0;
+                  const progress = (totalDelivered / (pi.QUANTITY_KG || 1)) * 100;
+                  const remaining = (pi.QUANTITY_KG || 0) - totalDelivered;
+                  const isPracticallyComplete = remaining <= 100 && remaining > 0;
 
-                            <div className="mb-6">
-                                <div className="text-sm font-black text-text-main uppercase flex items-center gap-2">
-                                    <Building size={12} className="text-text-dim" />
-                                    {pi.CUSTOMER_NAME}
-                                </div>
-                                <div className="text-xs font-bold text-text-dim uppercase tracking-tight mt-1 flex items-center gap-2">
-                                    <Tag size={10} className="text-text-dim" />
-                                    {pi.PRODUCT_QUALITY}
-                                </div>
-                            </div>
+                  return (
+                    <tr key={pi.PI_NO} className="hover:bg-primary/5 transition-colors group">
+                      <td className="px-5 py-4 align-top">
+                        <div className="font-black text-sm text-primary uppercase">{pi.PI_NO}</div>
+                        <div className="text-[10px] font-bold text-text-dim mt-1 uppercase tracking-widest flex items-center gap-1">
+                            <CalendarDays size={10} /> {formatDate(pi.INVOICE_DATE)}
                         </div>
-
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4 bg-surface-muted p-4 rounded-2xl">
-                                <div className="border-r border-border-main/50 pr-2">
-                                    <div className="text-[10px] font-black text-text-dim uppercase tracking-tighter">Contract Gross</div>
-                                    <div className="text-sm font-black text-primary">{pi.QUANTITY_KG?.toLocaleString()}kg</div>
-                                    <div className="text-[9px] font-bold text-text-dim mt-0.5 whitespace-nowrap">Val: ₹{pi.NET_AMOUNT?.toLocaleString()}</div>
-                                </div>
-                                <div className="pl-2">
-                                    <div className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter">Plan/Lifting</div>
-                                    <div className="text-sm font-black text-indigo-600">
-                                       {(liftingMap[piNo]?.assigned || 0).toLocaleString()}kg
-                                    </div>
-                                    <div className="text-[9px] font-bold text-indigo-400 mt-0.5">
-                                       Unassigned: {Math.max(0, (pi.QUANTITY_KG || 0) - (liftingMap[piNo]?.assigned || 0)).toLocaleString()}kg
-                                    </div>
-                                </div>
-                                <div className="border-t border-r border-border-main/50 pt-2 pr-2">
-                                    <div className="text-[10px] font-black text-rose-500 uppercase tracking-tighter">Remaining Bal</div>
-                                    <div className="text-sm font-black text-rose-600">{Math.max(0, (pi.QUANTITY_KG || 0) - (liftingMap[piNo]?.delivered || 0)).toLocaleString()}kg</div>
-                                    <div className="text-[9px] font-bold text-rose-400 mt-0.5 flex items-center gap-1">
-                                       <IndianRupee size={8} /> {((Math.max(0, (pi.QUANTITY_KG || 0) - (liftingMap[piNo]?.delivered || 0))) * (pi.RATE_PER_UNIT || 0)).toLocaleString()}
-                                    </div>
-                                </div>
-                                <div className="border-t border-border-main/50 pt-2 pl-2">
-                                    <div className="text-[10px] font-black text-teal-600 uppercase tracking-tighter">Delivered</div>
-                                    <div className="text-sm font-black text-teal-600">{(liftingMap[piNo]?.delivered || 0).toLocaleString()}kg</div>
-                                    <div className="text-[9px] font-bold text-teal-400 mt-0.5">Progress: {Math.round(progress)}%</div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <div className="flex justify-between items-center text-[11px] font-black uppercase">
-                                    <span className="text-text-dim">Inventory Clearance</span>
-                                    <span className="text-primary">{Math.min(100, Math.round(progress))}%</span>
-                                </div>
-                                <div className="h-1.5 w-full bg-surface-base rounded-full overflow-hidden">
-                                    <div 
-                                        className={cn(
-                                            "h-full rounded-full transition-all duration-1000",
-                                            pi.STATUS === 'COMPLETE' ? "bg-teal-500" : "bg-accent"
-                                        )}
-                                        style={{ width: `${Math.min(100, progress)}%` }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex items-center justify-between pt-4 border-t border-border-main">
-                                <div className="flex flex-col">
-                                  <span className="text-[11px] font-bold text-text-dim/50 uppercase truncate max-w-[120px]">
-                                      Sig: {pi.AUTHORIZED_SIGNATORY}
-                                  </span>
-                                  {pi.DELIVERY_PIN && (
-                                    <span className="text-[10px] font-black text-accent uppercase tracking-tighter">
-                                      PIN: {pi.DELIVERY_PIN}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button 
-                                        onClick={() => generatePIPdf(pi)}
-                                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                                        title="Download Proforma PDF"
-                                    >
-                                        <Download size={12} />
-                                    </button>
-                                    {(pi.STATUS === 'COMPLETE' || isPracticallyComplete) && (
-                                        <button 
-                                            onClick={() => handleArchive(pi.PI_NO)}
-                                            className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
-                                            title="Move to Archive"
-                                        >
-                                            <Archive size={12} />
-                                        </button>
-                                    )}
-                                    <button 
-                                        onClick={() => { setCurrentEntry(pi); setIsModalOpen(true); }}
-                                        className="p-2 text-slate-400 hover:text-accent hover:bg-accent/5 rounded-lg transition-all"
-                                    >
-                                        <Pencil size={12} />
-                                    </button>
-                                    <button 
-                                        onClick={() => handleDelete(pi.PI_NO)}
-                                        className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                                    >
-                                        <Trash2 size={12} />
-                                    </button>
-                                </div>
-                            </div>
+                        <div className="mt-2">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest inline-block",
+                              pi.STATUS === 'COMPLETE' || isPracticallyComplete ? "bg-teal-100 text-teal-700" : "bg-blue-100 text-blue-700"
+                            )}>
+                                {isPracticallyComplete ? 'NEAR COMPLETE' : pi.STATUS}
+                            </span>
                         </div>
-                    </div>
-                );
-            })
-        ) : (
-            <div className="col-span-full py-20 text-center flex flex-col items-center justify-center bg-white rounded-custom border border-slate-200">
-                <FileText size={48} className="text-slate-100 mb-4" />
-                <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">Vault Empty • No PI Transactions</p>
-            </div>
-        )}
+                      </td>
+                      <td className="px-5 py-4 align-top">
+                        <div className="text-sm font-black text-text-main uppercase">{pi.CUSTOMER_NAME}</div>
+                        <div className="text-[11px] font-bold text-text-dim uppercase flex items-center gap-1 mt-1 border border-border-main w-fit px-2 py-0.5 rounded-lg bg-surface-base">
+                            <Tag size={10} /> {pi.PRODUCT_QUALITY}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 align-top text-right">
+                        <div className="text-sm font-black text-primary">{pi.QUANTITY_KG?.toLocaleString()}kg</div>
+                        <div className="text-[10px] font-black text-text-dim mt-1.5 flex items-center justify-end gap-0.5">
+                            <IndianRupee size={10} /> {pi.NET_AMOUNT?.toLocaleString()}
+                        </div>
+                      </td>
+                      <td className="px-8 py-4 align-top">
+                        <div className="flex flex-col items-center">
+                          <div className="flex justify-between w-full text-[10px] font-black uppercase mb-1.5">
+                            <span className="text-teal-600">{totalDelivered.toLocaleString()}kg Del</span>
+                            <span className={remaining > 0 ? "text-rose-600" : "text-text-dim"}>{remaining > 0 ? `${remaining.toLocaleString()}kg Bal` : 'Fulfilled'}</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div 
+                              className={cn(
+                                "h-full rounded-full transition-all duration-700",
+                                pi.STATUS === 'COMPLETE' || isPracticallyComplete ? "bg-teal-500" : progress >= 50 ? "bg-accent" : "bg-primary"
+                              )}
+                              style={{ width: `${Math.min(100, progress)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 align-top text-right">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => generatePIPdf(pi)}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                            title="Download Proforma PDF"
+                          >
+                            <Download size={14} />
+                          </button>
+                          {(pi.STATUS === 'COMPLETE' || isPracticallyComplete) && (
+                            <button 
+                              onClick={() => handleArchive(pi.PI_NO)}
+                              className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                              title="Move to Archive"
+                            >
+                              <Archive size={14} />
+                            </button>
+                          )}
+                          <button onClick={() => { setCurrentEntry(pi); setIsModalOpen(true); }} className="p-2 text-primary hover:bg-primary/5 rounded-lg transition-all" title="Edit">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => handleDelete(pi.PI_NO)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all" title="Delete">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                   <td colSpan={5} className="py-16 text-center">
+                     <div className="flex flex-col items-center justify-center">
+                        <FileText size={40} className="text-border-main mb-3" />
+                        <p className="text-text-dim text-xs font-bold uppercase tracking-widest">Vault Empty • No PI Transactions</p>
+                     </div>
+                   </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {filteredPIs.length > itemsPerPage && (
@@ -574,7 +612,17 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                 </div>
 
                 <div className="grid grid-cols-1 gap-8 ring-1 ring-slate-100 p-6 rounded-3xl bg-slate-50/30">
-                    <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Party Name (Customer)</label>
+                             <input 
+                                required
+                                placeholder="Enter Customer Name"
+                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
+                                value={currentPI?.CUSTOMER_NAME || ''}
+                                onChange={e => setCurrentEntry({ ...currentPI, CUSTOMER_NAME: e.target.value })}
+                             />
+                        </div>
                         <div className="space-y-2">
                              <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Asset Quality / Type</label>
                              <select 
