@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { 
   FileText, 
   Search, 
@@ -205,6 +207,86 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
     return total;
   };
 
+  const generatePIPdf = (pi: any) => {
+    try {
+      const doc = new jsPDF();
+      
+      const margin = 14;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // Header
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("PROFORMA INVOICE", pageWidth / 2, margin + 10, { align: "center" });
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      
+      // Seller Info
+      doc.setFont("helvetica", "bold");
+      doc.text(pi.SELLER_NAME || "Yajur Lifting", margin, margin + 25);
+      doc.setFont("helvetica", "normal");
+      if (pi.SELLER_GSTIN) doc.text(`GSTIN: ${pi.SELLER_GSTIN}`, margin, margin + 30);
+      if (pi.SELLER_CIN) doc.text(`CIN: ${pi.SELLER_CIN}`, margin, margin + 35);
+      
+      // PI Info
+      doc.setFont("helvetica", "bold");
+      doc.text("PI Details", pageWidth - margin - 60, margin + 25);
+      doc.setFont("helvetica", "normal");
+      doc.text(`PI No: ${pi.PI_NO}`, pageWidth - margin - 60, margin + 30);
+      doc.text(`Date: ${formatDate(pi.INVOICE_DATE || new Date())}`, pageWidth - margin - 60, margin + 35);
+      
+      // Customer Info
+      doc.setFont("helvetica", "bold");
+      // Requested by user -> "Part Name" is Party Name
+      doc.text("Bill To (Party Name):", margin, margin + 50);
+      doc.setFont("helvetica", "normal");
+      doc.text(pi.CUSTOMER_NAME || "", margin, margin + 55);
+      if(pi.CUSTOMER_GST_NO) doc.text(`GSTIN: ${pi.CUSTOMER_GST_NO}`, margin, margin + 60);
+      
+      // Delivery Info
+      doc.setFont("helvetica", "bold");
+      doc.text("Ship To:", pageWidth - margin - 60, margin + 50);
+      doc.setFont("helvetica", "normal");
+      const addressLines = doc.splitTextToSize(pi.DELIVERY_ADDRESS || "As per instructions", 50);
+      doc.text(addressLines, pageWidth - margin - 60, margin + 55);
+      
+      // Table
+      autoTable(doc, {
+        startY: margin + Math.max(75, 55 + (addressLines.length * 5)),
+        headStyles: { fillColor: [79, 70, 229] }, // Accent color
+        head: [['Part Name / Quality', 'Quantity (KG)', 'Unit Count', 'Rate', 'Amount']],
+        body: [
+          [
+            pi.PRODUCT_QUALITY || 'N/A', 
+            `${(Number(pi.QUANTITY_KG) || 0).toLocaleString()} kg`, 
+            pi.UNIT_COUNT || 0,
+            `${(Number(pi.RATE_PER_UNIT) || 0).toLocaleString()}`, 
+            `${(Number(pi.ITEM_TOTAL) || Number(pi.NET_AMOUNT) || 0).toLocaleString()}`
+          ]
+        ],
+        foot: [['', '', '', 'Total (Rs)', `${(Number(pi.NET_AMOUNT) || Number(pi.ITEM_TOTAL) || 0).toLocaleString()}`]],
+        footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0,0,0] },
+        theme: 'grid'
+      });
+      
+      // Signature
+      const finalY = (doc as any).lastAutoTable.finalY || margin + 100;
+      
+      doc.setFont("helvetica", "bold");
+      doc.text(`For ${pi.SELLER_NAME || "Yajur Lifting"}`, pageWidth - margin, finalY + 30, { align: "right" });
+      doc.setFont("helvetica", "normal");
+      doc.text("Authorized Signatory", pageWidth - margin, finalY + 45, { align: "right" });
+      
+      doc.save(`PI_${pi.PI_NO}.pdf`);
+      onNotify('Success', 'PDF generated successfully', 'success');
+      onLog('Export PDF', `Generated PI ${pi.PI_NO}`);
+    } catch (error) {
+      console.error(error);
+      onNotify('Error', 'Failed to generate PDF', 'error');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Action Bar */}
@@ -352,6 +434,13 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                   )}
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button 
+                                        onClick={() => generatePIPdf(pi)}
+                                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                        title="Download Proforma PDF"
+                                    >
+                                        <Download size={12} />
+                                    </button>
                                     {(pi.STATUS === 'COMPLETE' || isPracticallyComplete) && (
                                         <button 
                                             onClick={() => handleArchive(pi.PI_NO)}
