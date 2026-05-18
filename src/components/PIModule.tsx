@@ -252,14 +252,16 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
     }
   };
 
+  const [emailRecipient, setEmailRecipient] = useState('mis@yajurfibres.com');
+
   const sendEmail = async (pdfId: string, piNo: string) => {
-    onNotify('Info', 'Sending email...', 'info');
+    onNotify('Info', `Sending email to ${emailRecipient}...`, 'info');
     try {
       // pdfId is now the Google Drive File ID
-      const res = await apiCall('sendEmailWithPdf', { pdfId: pdfId, emailTo: 'mis@yajurfibres.com', PI_NO: piNo });
-      if(res.success || res === "Email sent to mis@yajurfibres.com") {
-        onNotify('Success', 'Email sent successfully to mis@yajurfibres.com', 'success');
-        onLog('Email PDF', `Emailed PI ${piNo}`);
+      const res = await apiCall('sendEmailWithPdf', { pdfId: pdfId, emailTo: emailRecipient, PI_NO: piNo });
+      if(res.success || typeof res === 'string' && res.includes('Email sent')) {
+        onNotify('Success', `Email sent successfully to ${emailRecipient}`, 'success');
+        onLog('Email PDF', `Emailed PI ${piNo} to ${emailRecipient}`);
       } else {
         onNotify('Error', res.error || 'Failed to send email', 'error');
       }
@@ -533,12 +535,21 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                             >
                                 <Download size={16} /> Download PDF
                             </a>
-                            <button 
-                                onClick={() => pdfGenerationStatus.pdfId && sendEmail(pdfGenerationStatus.pdfId, pdfGenerationStatus.pi?.PI_NO)}
-                                className="w-full bg-accent hover:bg-indigo-600 text-white py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-colors shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
-                            >
-                                <Mail size={16} /> Email to mis@yajurfibres.com
-                            </button>
+                            <div className="flex bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:border-accent/40 transition-all shadow-sm">
+                                <input 
+                                    type="email"
+                                    value={emailRecipient}
+                                    onChange={(e) => setEmailRecipient(e.target.value)}
+                                    placeholder="Enter email address"
+                                    className="w-full bg-transparent px-4 py-3 text-sm font-bold outline-none"
+                                />
+                                <button 
+                                    onClick={() => pdfGenerationStatus.pdfId && sendEmail(pdfGenerationStatus.pdfId, pdfGenerationStatus.pi?.PI_NO)}
+                                    className="bg-accent hover:bg-indigo-600 text-white px-4 py-3 text-xs font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                                >
+                                    <Mail size={16} /> Send
+                                </button>
+                            </div>
                             <a 
                                 href={`https://wa.me/?text=Please%20find%20the%20Proforma%20Invoice%20attached:%20${encodeURIComponent(pdfGenerationStatus.pdfUrl || '')}`}
                                 target="_blank"
