@@ -238,9 +238,40 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
     onNotify('Info', 'Generating PDF using template...', 'info');
     try {
       setTimeout(async () => {
+        const originalGetComputedStyle = window.getComputedStyle;
+        const canvasCtx = document.createElement('canvas').getContext('2d');
+        
         try {
           const element = document.getElementById('pdf-template');
           if (!element) throw new Error('Template element not found');
+
+          // Deep clone the element to modify inline styles without affecting React
+          const clone = element.cloneNode(true) as HTMLElement;
+          const wrapper = document.createElement('div');
+          wrapper.style.position = 'absolute';
+          wrapper.style.top = '-9999px';
+          wrapper.style.left = '-9999px';
+          wrapper.appendChild(clone);
+          document.body.appendChild(wrapper);
+
+          // Convert oklch to hex explicitly via getComputedStyle
+          const allEls = [clone, ...Array.from(clone.querySelectorAll('*'))];
+          const colorProps = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor', 'fill', 'stroke'];
+          
+          allEls.forEach((el) => {
+             const style = originalGetComputedStyle(el);
+             colorProps.forEach(prop => {
+                const val = style[prop as any];
+                if (val && typeof val === 'string' && val.includes('oklch')) {
+                   if (canvasCtx) {
+                      canvasCtx.fillStyle = val;
+                      (el as HTMLElement).style[prop as any] = canvasCtx.fillStyle;
+                   } else {
+                      (el as HTMLElement).style[prop as any] = '#000000';
+                   }
+                }
+             });
+          });
           
           const opt = {
             margin:       [0, 0.2, 0, 0.2], // top, left, bottom, right
@@ -250,8 +281,10 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
             jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
           };
 
-          const pdfBase64 = await html2pdf().set(opt).from(element).outputPdf('datauristring');
-          html2pdf().set(opt).from(element).save();
+          const pdfBase64 = await html2pdf().set(opt).from(clone).outputPdf('datauristring');
+          html2pdf().set(opt).from(clone).save();
+          
+          document.body.removeChild(wrapper);
           
           setPdfGenerationStatus({ loading: false, pi, pdfUrl: pdfBase64, pdfId: pdfBase64 });
           onNotify('Success', 'PDF generated successfully', 'success');
