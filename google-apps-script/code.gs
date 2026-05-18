@@ -651,7 +651,7 @@ function generatePdfFromTemplate(params) {
   const deliveryStr = [deliveryName, params.DELIVERY_ADDRESS, params.DELIVERY_GST_NO ? `GSTIN :\t${params.DELIVERY_GST_NO}` : ""].filter(Boolean).join("\n");
   newSheet.createTextFinder("<<DELIVERY>>").replaceAllWith(deliveryStr || consigneeStr);
   
-  newSheet.createTextFinder("<<currency>>").replaceAllWith("Rs");
+  newSheet.createTextFinder("<<currency>>").replaceAllWith(params.CURRENCY || "Rs");
   
   let items = [];
   try {

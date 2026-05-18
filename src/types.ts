@@ -74,6 +74,7 @@ export interface PI {
   PI_NO: string;
   INVOICE_DATE: string;
   ITEMS?: string | PIItem[];
+  CURRENCY?: string;
   SELLER_NAME: string;
   SELLER_GSTIN?: string;
   SELLER_CIN?: string;

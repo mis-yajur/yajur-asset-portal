@@ -812,7 +812,21 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="space-y-2">
-                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Target KG</label>
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Unit/Box</label>
+                                        <input 
+                                            type="number"
+                                            placeholder="133.00"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
+                                            value={item.UNIT_COUNT || ''}
+                                            onChange={e => {
+                                                const items = [...(currentPI?.ITEMS as any[])];
+                                                items[index] = { ...items[index], UNIT_COUNT: Number(e.target.value) };
+                                                setCurrentEntry({ ...currentPI, ITEMS: items });
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Quantity ( in Kg.)</label>
                                         <input 
                                             required={index === 0}
                                             type="number"
@@ -827,7 +841,18 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Unit Rate (₹)</label>
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center">
+                                            Rate/Kg
+                                            <select 
+                                                className="ml-2 bg-transparent text-accent font-bold outline-none cursor-pointer"
+                                                value={currentPI?.CURRENCY || 'Rs'}
+                                                onChange={e => setCurrentEntry({...currentPI, CURRENCY: e.target.value})}
+                                            >
+                                                <option value="Rs">in Rs.</option>
+                                                <option value="$">in Dollar ($)</option>
+                                                <option value="€">in Euro (€)</option>
+                                            </select>
+                                        </label>
                                         <input 
                                             required={index === 0}
                                             type="number"
@@ -837,20 +862,6 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                             onChange={e => {
                                                 const items = [...(currentPI?.ITEMS as any[])];
                                                 items[index] = { ...items[index], RATE_PER_UNIT: Number(e.target.value) };
-                                                setCurrentEntry({ ...currentPI, ITEMS: items });
-                                            }}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Unit/Box</label>
-                                        <input 
-                                            type="number"
-                                            placeholder="133.00"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
-                                            value={item.UNIT_COUNT || ''}
-                                            onChange={e => {
-                                                const items = [...(currentPI?.ITEMS as any[])];
-                                                items[index] = { ...items[index], UNIT_COUNT: Number(e.target.value) };
                                                 setCurrentEntry({ ...currentPI, ITEMS: items });
                                             }}
                                         />
@@ -868,20 +879,28 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Payment Terms</label>
                                 <input 
+                                    list="payment-terms-list"
                                     placeholder="e.g. 100% advance before dispatch."
                                     className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
                                     value={currentPI?.PAYMENT_TERMS || ''}
                                     onChange={e => setCurrentEntry({ ...currentPI, PAYMENT_TERMS: e.target.value })}
                                 />
+                                <datalist id="payment-terms-list">
+                                    <option value="100% advance before dispatch." />
+                                </datalist>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Note</label>
                                 <input 
+                                    list="note-list"
                                     placeholder="e.g. The above quoted price is ex-factory"
                                     className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
                                     value={currentPI?.NOTE || ''}
                                     onChange={e => setCurrentEntry({ ...currentPI, NOTE: e.target.value })}
                                 />
+                                <datalist id="note-list">
+                                    <option value="The above quoted price is ex-factory" />
+                                </datalist>
                             </div>
                         </div>
                     </div>
@@ -911,11 +930,15 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                               <div className="space-y-2">
                                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Transport Mode</label>
                                   <input 
+                                      list="transport-mode-list"
                                       placeholder="e.g. Through Jain Carrying Transport (By Road)"
                                       className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
                                       value={currentPI?.TRANSPORT_MODE || ''}
                                       onChange={e => setCurrentEntry({ ...currentPI, TRANSPORT_MODE: e.target.value })}
                                   />
+                                  <datalist id="transport-mode-list">
+                                      <option value="Through Jain Carrying Transport  (By Road)" />
+                                  </datalist>
                               </div>
                             </div>
                         </div>
