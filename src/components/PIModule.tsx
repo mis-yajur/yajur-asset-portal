@@ -20,7 +20,10 @@ import {
   ChevronRight,
   IndianRupee,
   Archive,
-  CalendarDays
+  CalendarDays,
+  CheckCircle,
+  Mail,
+  X
 } from 'lucide-react';
 import { apiCall } from '../services/api';
 import { cn, formatDate } from '../lib/utils';
@@ -208,154 +211,41 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
     return total;
   };
 
-  const generatePIPdf = (pi: any) => {
+  const [pdfGenerationStatus, setPdfGenerationStatus] = useState<{loading: boolean, pi: any | null, pdfUrl: string | null, pdfId: string | null}>({loading: false, pi: null, pdfUrl: null, pdfId: null});
+
+  const generatePIPdf = async (pi: any) => {
+    setPdfGenerationStatus({ loading: true, pi, pdfUrl: null, pdfId: null });
+    onNotify('Info', 'Generating PDF using template...', 'info');
     try {
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 10;
-      
-      let currentY = margin;
-      
-      // PROFORMA INVOICE Title
-      autoTable(doc, {
-        startY: currentY,
-        margin: { left: margin, right: margin },
-        head: [['PROFORMA INVOICE']],
-        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center', lineWidth: 0.5, lineColor: [0,0,0], fontSize: 11 },
-        theme: 'grid'
-      });
-      currentY = (doc as any).lastAutoTable.finalY;
-
-      // Seller Info Block
-      autoTable(doc, {
-        startY: currentY,
-        margin: { left: margin, right: margin },
-        body: [
-          ['', "YAJUR FIBRES LIMITED\n5, MIDDLETON STREET, RUSSEL STREET AREA\nKOLKATA, PIN - 700071, WEST BENGAL, INDIA\nCONTACT NO. +91-9903862793\nE-mail : sales@yajurfibres.com\nCIN : U17100WB1980PLC032918\nGSTIN : 19AAECS2882B3ZB", "European Flax.\nPremium linen fiber\nCertificate No: BVFR14492922\n\nPROFORMA INVOICE NO : \n" + pi.PI_NO + "\nDATE : " + formatDate(pi.INVOICE_DATE || new Date())]
-        ],
-        columnStyles: {
-          0: { cellWidth: 40, halign: 'center', valign: 'middle' }, // Logo area
-          1: { cellWidth: 95, halign: 'center', fontSize: 8 },
-          2: { cellWidth: 55, halign: 'left', fontSize: 9 }
-        },
-        theme: 'grid',
-        styles: { textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 }
-      });
-      
-      currentY = (doc as any).lastAutoTable.finalY;
-      
-      // CONSIGNEE & DELIVERY
-      const customerName = `M/s ${pi.CUSTOMER_NAME || 'KARWA YARN PVT. LTD.'}`;
-      const customerAddress = pi.CUSTOMER_ADDRESS || 'GOPAL BAG, P.O. - BHULLANPUR PAC\nMANDUADIH, VARANASI, PIN - 221108\nUTTAR PRADESH';
-      const customerGst = pi.CUSTOMER_GST_NO || '09AAFCA1542F1Z0';
-      
-      const deliveryName = `M/s ${pi.DELIVERY_NAME || pi.CUSTOMER_NAME || 'KARWA YARN PVT. LTD.'}`;
-      const deliveryAddress = pi.DELIVERY_ADDRESS || customerAddress;
-      const deliveryGst = pi.DELIVERY_GST_NO || customerGst;
-
-      autoTable(doc, {
-        startY: currentY,
-        margin: { left: margin, right: margin },
-        head: [['CONSIGNEE', 'DELIVERY']],
-        headStyles: { fillColor: [245, 245, 245], textColor: [0,0,0], fontStyle: 'bold', halign: 'center', lineWidth: 0.5, lineColor: [0,0,0] },
-        body: [
-          [
-            `${customerName}\n${customerAddress}\nGSTIN :\t${customerGst}`,
-            `${deliveryName}\n${deliveryAddress}\nGSTIN :\t${deliveryGst}`
-          ]
-        ],
-        columnStyles: {
-          0: { cellWidth: (pageWidth - 2*margin)/2, fontSize: 9 },
-          1: { cellWidth: (pageWidth - 2*margin)/2, fontSize: 9 }
-        },
-        theme: 'grid',
-        styles: { textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5 }
-      });
-      
-      currentY = (doc as any).lastAutoTable.finalY;
-      
-      const qty = Number(pi.QUANTITY_KG) || 0;
-      const rate = Number(pi.RATE_PER_UNIT) || 0;
-      const total = qty * rate;
-      
-      // Products Table
-      autoTable(doc, {
-        startY: currentY,
-        margin: { left: margin, right: margin },
-        head: [['SL.NO', 'PRODUCT / QUALITY', 'Unit/Box', 'Quantity\n( in Kg.)', 'Rate/Kg\n( in Rs.)', 'Total (In Rs.)']],
-        headStyles: { fillColor: [245, 245, 245], textColor: [0,0,0], fontStyle: 'bold', halign: 'center', lineWidth: 0.5, lineColor: [0,0,0], fontSize: 9 },
-        body: [
-          ['1', `${pi.PRODUCT_QUALITY || 'FLAX YARN - 6 LEA NATURAL\nUNPOLISHED IN HANK FORM'}`, pi.UNIT_COUNT ? pi.UNIT_COUNT.toFixed(2) : '133.00', qty.toFixed(2), rate.toFixed(2), total.toFixed(2)],
-          ...Array.from({length: 6}).map(() => ['', '', '', '', '', '']) // Extra blank rows
-        ],
-        columnStyles: {
-          0: { cellWidth: 15, halign: 'center' },
-          1: { cellWidth: 65 },
-          2: { cellWidth: 25, halign: 'right' },
-          3: { cellWidth: 25, halign: 'right' },
-          4: { cellWidth: 25, halign: 'right' },
-          5: { cellWidth: 35, halign: 'right' }
-        },
-        theme: 'grid',
-        styles: { textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, fontSize: 9, minCellHeight: 8 }
-      });
-      
-      currentY = (doc as any).lastAutoTable.finalY;
-      
-      const cgst = 0;
-      const sgst = 0;
-      const igst = total * 0.05; // 5% IGST usually
-      const netAmount = total + cgst + sgst + igst;
-      
-      const paymentTerms = pi.PAYMENT_TERMS || '100% advance before dispatch.';
-      const noteStr = pi.NOTE || 'The above quoted price is ex-factory';
-      const consignmentNote = pi.CONSIGNMENT_NOTE || '';
-      const vehicleNo = pi.VEHICLE_NO || '';
-      const transportMode = pi.TRANSPORT_MODE || 'Through Jain Carrying Transport (By Road)';
-
-      // Footer Table 1 (Totals)
-      autoTable(doc, {
-        startY: currentY,
-        margin: { left: margin, right: margin },
-        body: [
-          [{ content: 'TOTAL :', colSpan: 2 }, pi.UNIT_COUNT ? pi.UNIT_COUNT.toFixed(2) : '133.00', qty.toFixed(2), '', total.toFixed(2)],
-          [{ content: 'Add : Delivery Charges\t\t\t\t\t\t\t\tTo Pay', colSpan: 5 }, '0.00'],
-          [{ content: 'Total Amount Before Tax :', colSpan: 5 }, total.toFixed(2)],
-          [{ content: 'Add : CGST', colSpan: 5 }, cgst.toFixed(2)],
-          [{ content: 'Add : SGST', colSpan: 5 }, sgst.toFixed(2)],
-          [{ content: 'Add : IGST', colSpan: 4 }, '5%', igst.toFixed(2)],
-          [{ content: 'Other Charges :', colSpan: 5 }, '0.00'],
-          [{ content: 'Net Amount : (In Rs.)', colSpan: 5 }, netAmount.toFixed(2)],
-          [{ content: `Payment Terms :   ${paymentTerms}`, colSpan: 6, styles: { fontStyle: 'bold' } }],
-          [{ content: `Note : ${noteStr}`, colSpan: 6, styles: { fontStyle: 'bold' } }],
-          [{ content: `Consignment Note : ${consignmentNote}`, colSpan: 6 }],
-          [{ content: `Vehicle No. : ${vehicleNo}`, colSpan: 3 }, { content: `Transport Mode: ${transportMode}`, colSpan: 3 }],
-          [{ content: 'Bank Details\nYAJUR FIBRES LIMITED\nBANK :\t\t\tICICI BANK LTD\nBRANCH :\t\tMIDDLETON STREET, KOLKATA-71\nA/C NO :\t\t\t355051000003\nRTGS CODE :\t\tICIC0003550', colSpan: 3, styles: { cellPadding: 2 } }, { content: `YAJUR FIBRES LIMITED\n\n\n\n\n${pi.AUTHORIZED_SIGNATORY || 'Authorised Signatory'}`, colSpan: 3 }]
-        ],
-        columnStyles: {
-          0: { cellWidth: 15 },
-          1: { cellWidth: 65 },
-          2: { cellWidth: 25, halign: 'right' },
-          3: { cellWidth: 25, halign: 'right' },
-          4: { cellWidth: 25, halign: 'right' },
-          5: { cellWidth: 35, halign: 'right' }
-        },
-        theme: 'grid',
-        styles: { textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.5, fontSize: 9 }
-      });
-      
-      // Add text at bottom
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "bold");
-      doc.text("Regd . Office : 5, MIDDLETON STREET, KOLKATA - 700071, WEST BENGAL, INDIA, M - 9903862793", margin, pageHeight - 15);
-      
-      doc.save(`PI_${pi.PI_NO}.pdf`);
-      onNotify('Success', 'PDF generated successfully', 'success');
-      onLog('Export PDF', `Generated PI ${pi.PI_NO}`);
+      const res = await apiCall('generatePdfFromTemplate', pi);
+      if(res.success && res.data) {
+        setPdfGenerationStatus({ loading: false, pi, pdfUrl: res.data.pdfUrl, pdfId: res.data.pdfId });
+        onNotify('Success', 'PDF generated successfully', 'success');
+        onLog('Export PDF', `Generated PI ${pi.PI_NO}`);
+      } else {
+        setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null });
+        onNotify('Error', 'Failed to generate PDF', 'error');
+      }
     } catch (error) {
       console.error(error);
+      setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null });
       onNotify('Error', 'Failed to generate PDF', 'error');
+    }
+  };
+
+  const sendEmail = async (pdfId: string, piNo: string) => {
+    onNotify('Info', 'Sending email...', 'info');
+    try {
+      const res = await apiCall('sendEmailWithPdf', { pdfId, emailTo: 'mis@yajurfibres.com', PI_NO: piNo });
+      if(res.success) {
+        onNotify('Success', 'Email sent successfully to mis@yajurfibres.com', 'success');
+        onLog('Email PDF', `Emailed PI ${piNo}`);
+      } else {
+        onNotify('Error', 'Failed to send email', 'error');
+      }
+    } catch (error) {
+      console.error(error);
+      onNotify('Error', 'Failed to send email', 'error');
     }
   };
 
@@ -552,6 +442,74 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
             </div>
         </div>
       )}
+
+      {/* PDF Action Modal */}
+      {pdfGenerationStatus.loading || pdfGenerationStatus.pdfUrl ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-primary/40 backdrop-blur-md" onClick={() => {
+              if(!pdfGenerationStatus.loading) setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null});
+          }} />
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-200">
+             <div className="bg-primary text-white p-6">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight">PDF Export</h3>
+                    </div>
+                    {!pdfGenerationStatus.loading && (
+                        <button onClick={() => setPdfGenerationStatus({loading: false, pi: null, pdfUrl: null, pdfId: null})} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                            <X size={20} />
+                        </button>
+                    )}
+                </div>
+             </div>
+             
+             <div className="p-8 text-center space-y-6">
+                {pdfGenerationStatus.loading ? (
+                    <div className="flex flex-col items-center justify-center py-8">
+                        <div className="w-16 h-16 border-4 border-indigo-100 border-t-accent rounded-full animate-spin mb-4" />
+                        <h4 className="text-sm font-black text-primary uppercase tracking-widest">Generating Secure PDF...</h4>
+                        <p className="text-xs font-bold text-text-dim mt-2">Connecting to Fiscal Mainframe</p>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        <div className="w-20 h-20 bg-teal-50 text-teal-500 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                            <CheckCircle size={32} />
+                        </div>
+                        <div>
+                            <h4 className="text-lg font-black text-primary uppercase tracking-tight">Ready for Dispatch</h4>
+                            <p className="text-xs font-bold text-text-dim mt-1 uppercase tracking-widest">{pdfGenerationStatus.pi?.PI_NO}</p>
+                        </div>
+                        
+                        <div className="flex flex-col gap-3">
+                            <a 
+                                href={pdfGenerationStatus.pdfUrl || '#'} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <FileText size={16} /> Open Document Link
+                            </a>
+                            <button 
+                                onClick={() => pdfGenerationStatus.pdfId && sendEmail(pdfGenerationStatus.pdfId, pdfGenerationStatus.pi?.PI_NO)}
+                                className="w-full bg-accent hover:bg-indigo-600 text-white py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-colors shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
+                            >
+                                <Mail size={16} /> Email to mis@yajurfibres.com
+                            </button>
+                            <a 
+                                href={`https://wa.me/?text=Please%20find%20the%20Proforma%20Invoice%20attached:%20${encodeURIComponent(pdfGenerationStatus.pdfUrl || '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-colors shadow-lg shadow-green-600/20 flex items-center justify-center gap-2"
+                            >
+                                Send via WhatsApp
+                            </a>
+                        </div>
+                    </div>
+                )}
+             </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* PI Modal */}
       {isModalOpen && (
@@ -835,6 +793,59 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                       onChange={e => setCurrentEntry({ ...currentPI, TRANSPORT_MODE: e.target.value })}
                                   />
                               </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-8 ring-1 ring-slate-100 p-6 rounded-3xl bg-slate-50/30">
+                    <div className="space-y-4">
+                        <h4 className="text-sm font-black text-primary uppercase tracking-widest border-b border-border-main pb-2">Fiscal Impact (Taxes & Charges)</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Delivery Charges</label>
+                                <input 
+                                    placeholder="0.00"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
+                                    value={currentPI?.DELIVERY_CHARGES || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, DELIVERY_CHARGES: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">CGST (%)</label>
+                                <input 
+                                    placeholder="0"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
+                                    value={currentPI?.CGST_PERCENT || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, CGST_PERCENT: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">SGST (%)</label>
+                                <input 
+                                    placeholder="0"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
+                                    value={currentPI?.SGST_PERCENT || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, SGST_PERCENT: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">IGST (%)</label>
+                                <input 
+                                    placeholder="5"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
+                                    value={currentPI?.IGST_PERCENT || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, IGST_PERCENT: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Other Charges</label>
+                                <input 
+                                    placeholder="0.00"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
+                                    value={currentPI?.OTHER_CHARGES || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, OTHER_CHARGES: e.target.value })}
+                                />
                             </div>
                         </div>
                     </div>

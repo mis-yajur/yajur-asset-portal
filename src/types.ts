@@ -93,6 +93,12 @@ export interface PI {
   VEHICLE_NO?: string;
   TRANSPORT_MODE?: string;
   
+  DELIVERY_CHARGES?: string;
+  CGST_PERCENT?: string;
+  SGST_PERCENT?: string;
+  IGST_PERCENT?: string;
+  OTHER_CHARGES?: string;
+  
   CREATED_DATE?: string;
   // Computed fields
   totalDelivered?: number;

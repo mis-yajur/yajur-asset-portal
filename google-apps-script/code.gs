@@ -69,6 +69,9 @@ function doPost(e) {
       case 'getReports': result = getReports(params.startDate, params.endDate); break;
       case 'restoreArchive': result = restoreArchive(); break;
       
+      case 'generatePdfFromTemplate': result = generatePdfFromTemplate(params); break;
+      case 'sendEmailWithPdf': result = sendEmailWithPdf(params); break;
+      
       default:
         throw new Error('Action not recognized: ' + action);
     }
@@ -613,3 +616,83 @@ function getReports(startDate, endDate) {
     allLifting: filteredLifts
   };
 }
+
+function generatePdfFromTemplate(params) {
+  const templateId = "1aTszrbxLJ3tumPSVPp0DAIPHJVq4V25E7btV8lwwgTk";
+  const folderId = "1gBoluQTF6-ZWYgIzRb5WwEoxb0BXx56c";
+  
+  // Make a copy of the template
+  const destFolder = DriveApp.getFolderById(folderId);
+  const newFile = DriveApp.getFileById(templateId).makeCopy(`PI_${params.PI_NO}`, destFolder);
+  const newSs = SpreadsheetApp.openById(newFile.getId());
+  const newSheet = newSs.getSheets()[0];
+  
+  // Replace variables
+  newSheet.createTextFinder("<<PROFORMA INVOICE NO>>").replaceAllWith(params.PI_NO || "");
+  newSheet.createTextFinder("<<Date>>").replaceAllWith(params.INVOICE_DATE || "");
+  newSheet.createTextFinder("<<Party Name (Customer)>>").replaceAllWith(params.CUSTOMER_NAME || "");
+  newSheet.createTextFinder("<<DELIVERY>>").replaceAllWith(params.DELIVERY_NAME || params.CUSTOMER_NAME || "");
+  newSheet.createTextFinder("<<currency>>").replaceAllWith("Rs");
+  
+  // Line 1
+  newSheet.createTextFinder("<<SL1>>").replaceAllWith("1");
+  newSheet.createTextFinder("<<PRODUCT / QUALITY1>>").replaceAllWith(params.PRODUCT_QUALITY || "");
+  newSheet.createTextFinder("<<Unit1>>").replaceAllWith(params.UNIT_COUNT ? String(params.UNIT_COUNT) : "");
+  newSheet.createTextFinder("<<Quantity1>>").replaceAllWith(params.QUANTITY_KG ? String(params.QUANTITY_KG) : "");
+  newSheet.createTextFinder("<<Rate1>>").replaceAllWith(params.RATE_PER_UNIT ? String(params.RATE_PER_UNIT) : "");
+  
+  // Clear others
+  for(let i=2; i<=7; i++) {
+    newSheet.createTextFinder(`<<SL${i}>>`).replaceAllWith("");
+    newSheet.createTextFinder(`<<PRODUCT / QUALITY${i}>>`).replaceAllWith("");
+    newSheet.createTextFinder(`<<Unit${i}>>`).replaceAllWith("");
+    newSheet.createTextFinder(`<<Quantity${i}>>`).replaceAllWith("");
+    newSheet.createTextFinder(`<<Rate${i}>>`).replaceAllWith("");
+  }
+  
+  newSheet.createTextFinder("<<Delivery Charges >>").replaceAllWith(params.DELIVERY_CHARGES || "0.00");
+  newSheet.createTextFinder("<<CGST%>>").replaceAllWith(params.CGST_PERCENT || "0");
+  newSheet.createTextFinder("<<SGST%>>").replaceAllWith(params.SGST_PERCENT || "0");
+  newSheet.createTextFinder("<<IGST%>>").replaceAllWith(params.IGST_PERCENT || "5");
+  newSheet.createTextFinder("<<other_charges>>").replaceAllWith(params.OTHER_CHARGES || "0.00");
+  newSheet.createTextFinder("<<Payment Terms>>").replaceAllWith(params.PAYMENT_TERMS || "");
+  newSheet.createTextFinder("<<Note>>").replaceAllWith(params.NOTE || "");
+  newSheet.createTextFinder("<<Consignment Note>>").replaceAllWith(params.CONSIGNMENT_NOTE || "");
+  newSheet.createTextFinder("<<Vehicle No>>").replaceAllWith(params.VEHICLE_NO || "");
+  newSheet.createTextFinder("<<Transporat Mode>>").replaceAllWith(params.TRANSPORT_MODE || "");
+  newSheet.createTextFinder("<<Digitally signed>>").replaceAllWith(params.AUTHORIZED_SIGNATORY || "");
+  
+  SpreadsheetApp.flush();
+  
+  const url = newFile.getUrl().replace(/edit$/, '') + 'export?exportFormat=pdf&format=pdf';
+  const token = ScriptApp.getOAuthToken();
+  const response = UrlFetchApp.fetch(url, {
+    headers: {
+      'Authorization': 'Bearer ' + token
+    }
+  });
+  
+  const blob = response.getBlob().setName(`PI_${params.PI_NO}.pdf`);
+  const finalPdf = destFolder.createFile(blob);
+  
+  // Clean up template copy
+  newFile.setTrashed(true);
+  
+  // Set permissions
+  finalPdf.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  
+  return {
+    pdfUrl: finalPdf.getUrl(),
+    pdfDownloadUrl: finalPdf.getDownloadUrl(),
+    pdfId: finalPdf.getId()
+  };
+}
+
+function sendEmailWithPdf(params) {
+   const file = DriveApp.getFileById(params.pdfId);
+   MailApp.sendEmail(params.emailTo, `Proforma Invoice ${params.PI_NO}`, 'Please find the attached Proforma Invoice.', {
+     attachments: [file.getAs(MimeType.PDF)]
+   });
+   return "Email sent to " + params.emailTo;
+}
+
