@@ -791,10 +791,27 @@ function generatePdfFromTemplate(params) {
   newFile.setTrashed(true);
   finalPdf.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   
+  const pdfUrl = finalPdf.getUrl();
+  const pdfDownloadUrl = `https://drive.google.com/uc?export=download&id=${finalPdf.getId()}`;
+  const pdfId = finalPdf.getId();
+
+  if (params.PI_NO) {
+    try {
+      updateRow('pi_data', 'PI_NO', { 
+        PI_NO: params.PI_NO,
+        PDF_URL: pdfUrl,
+        PDF_DOWNLOAD_URL: pdfDownloadUrl,
+        PDF_ID: pdfId 
+      });
+    } catch (e) {
+      console.error('Could not save PDF urls to PI row: ' + e.message);
+    }
+  }
+
   return {
-    pdfUrl: finalPdf.getUrl(),
-    pdfDownloadUrl: `https://drive.google.com/uc?export=download&id=${finalPdf.getId()}`,
-    pdfId: finalPdf.getId()
+    pdfUrl: pdfUrl,
+    pdfDownloadUrl: pdfDownloadUrl,
+    pdfId: pdfId
   };
 }
 

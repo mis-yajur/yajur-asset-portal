@@ -21,7 +21,9 @@ import {
   CalendarDays,
   CheckCircle,
   Mail,
-  X
+  X,
+  ExternalLink,
+  RefreshCcw
 } from 'lucide-react';
 import { apiCall } from '../services/api';
 import { cn, formatDate } from '../lib/utils';
@@ -239,7 +241,14 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       const res = await apiCall('generatePdfFromTemplate', pi);
       
       if (res.success && res.data) {
-         setPdfGenerationStatus({ isOpen: true, loading: false, pi, pdfUrl: res.data.pdfUrl, pdfId: res.data.pdfId, pdfDownloadUrl: res.data.pdfDownloadUrl, error: null });
+         setPdfGenerationStatus({ isOpen: false, loading: false, pi, pdfUrl: res.data.pdfUrl, pdfId: res.data.pdfId, pdfDownloadUrl: res.data.pdfDownloadUrl, error: null });
+         
+         setPiData(prev => prev.map(p => 
+           p.PI_NO === pi.PI_NO 
+             ? { ...p, PDF_URL: res.data.pdfUrl, PDF_DOWNLOAD_URL: res.data.pdfDownloadUrl, PDF_ID: res.data.pdfId } 
+             : p
+         ));
+         
          onNotify('Success', 'PDF generated and saved to Drive successfully', 'success');
          onLog('Export PDF', `Generated PI ${pi.PI_NO} via Drive`);
       } else {
@@ -395,13 +404,56 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                       </td>
                       <td className="px-5 py-4 align-top text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => generatePIPdf(pi)}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                            title="Download Proforma PDF"
-                          >
-                            <Download size={14} />
-                          </button>
+                          {pi.PDF_URL ? (
+                            <>
+                              <a 
+                                href={pi.PDF_DOWNLOAD_URL || pi.PDF_URL}
+                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                title="Download PDF"
+                              >
+                                <Download size={14} />
+                              </a>
+                              <a 
+                                href={pi.PDF_URL}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                title="Open in Drive"
+                              >
+                                <ExternalLink size={14} />
+                              </a>
+                              <button
+                                onClick={() => setPdfGenerationStatus({
+                                  isOpen: true,
+                                  loading: false,
+                                  pi: pi,
+                                  pdfUrl: pi.PDF_URL as string,
+                                  pdfDownloadUrl: pi.PDF_DOWNLOAD_URL as string,
+                                  pdfId: pi.PDF_ID as string,
+                                  error: null
+                                })}
+                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                title="Share & Email"
+                              >
+                                <Mail size={14} />
+                              </button>
+                              <button 
+                                onClick={() => generatePIPdf(pi)}
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                title="Regenerate PDF"
+                              >
+                                <RefreshCcw size={14} />
+                              </button>
+                            </>
+                          ) : (
+                            <button 
+                              onClick={() => generatePIPdf(pi)}
+                              className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                              title="Generate Proforma PDF"
+                            >
+                              <FileText size={14} />
+                            </button>
+                          )}
                           {(pi.STATUS === 'COMPLETE' || isPracticallyComplete) && (
                             <button 
                               onClick={() => handleArchive(pi.PI_NO)}
