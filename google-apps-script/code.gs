@@ -170,7 +170,12 @@ function addRow(sheetName, params) {
     initializeSheets();
     sheet = ss.getSheetByName(sheetName);
   }
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  
+  if (sheetName === 'pi_data' && headers.indexOf('ITEMS') === -1) {
+    sheet.getRange(1, headers.length + 1).setValue('ITEMS');
+    headers.push('ITEMS');
+  }
   
   if (sheetName === 'pi_data' && !params.CREATED_AT) {
     params.CREATED_AT = new Date().toISOString();
@@ -212,15 +217,22 @@ function updateRow(sheetName, idKey, params) {
     initializeSheets();
     sheet = ss.getSheetByName(sheetName);
   }
+  let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (sheetName === 'pi_data' && headers.indexOf('ITEMS') === -1) {
+    sheet.getRange(1, headers.length + 1).setValue('ITEMS');
+    headers.push('ITEMS');
+  }
+  
   const data = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const idIndex = headers.indexOf(idKey);
+  // Ensure headers match even if added column
+  const currentHeaders = data[0].length < headers.length ? headers : data[0];
+  const idIndex = currentHeaders.indexOf(idKey);
   
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][idIndex]) === String(params[idKey])) {
-      const rowRange = sheet.getRange(i + 1, 1, 1, headers.length);
-      const updatedRow = headers.map((h, idx) => {
-        return params[h] !== undefined ? params[h] : data[i][idx];
+      const rowRange = sheet.getRange(i + 1, 1, 1, currentHeaders.length);
+      const updatedRow = currentHeaders.map((h, idx) => {
+        return params[h] !== undefined ? params[h] : (data[i][idx] !== undefined ? data[i][idx] : "");
       });
       rowRange.setValues([updatedRow]);
       return { success: true };
@@ -641,20 +653,35 @@ function generatePdfFromTemplate(params) {
   
   newSheet.createTextFinder("<<currency>>").replaceAllWith("Rs");
   
-  // Line 1
-  newSheet.createTextFinder("<<SL1>>").replaceAllWith("1");
-  newSheet.createTextFinder("<<PRODUCT / QUALITY1>>").replaceAllWith(params.PRODUCT_QUALITY || "");
-  newSheet.createTextFinder("<<Unit1>>").replaceAllWith(params.UNIT_COUNT ? String(params.UNIT_COUNT) : "");
-  newSheet.createTextFinder("<<Quantity1>>").replaceAllWith(params.QUANTITY_KG ? String(params.QUANTITY_KG) : "");
-  newSheet.createTextFinder("<<Rate1>>").replaceAllWith(params.RATE_PER_UNIT ? String(params.RATE_PER_UNIT) : "");
-  
-  // Clear others
-  for(let i=2; i<=7; i++) {
-    newSheet.createTextFinder(`<<SL${i}>>`).replaceAllWith("");
-    newSheet.createTextFinder(`<<PRODUCT / QUALITY${i}>>`).replaceAllWith("");
-    newSheet.createTextFinder(`<<Unit${i}>>`).replaceAllWith("");
-    newSheet.createTextFinder(`<<Quantity${i}>>`).replaceAllWith("");
-    newSheet.createTextFinder(`<<Rate${i}>>`).replaceAllWith("");
+  let items = [];
+  try {
+      items = (typeof params.ITEMS === 'string') ? JSON.parse(params.ITEMS) : (params.ITEMS || []);
+  } catch(e) {}
+
+  if (items.length === 0) {
+      items.push({
+          PRODUCT_QUALITY: params.PRODUCT_QUALITY || "",
+          UNIT_COUNT: params.UNIT_COUNT || "",
+          QUANTITY_KG: params.QUANTITY_KG || "",
+          RATE_PER_UNIT: params.RATE_PER_UNIT || ""
+      });
+  }
+
+  for(let i=1; i<=7; i++) {
+    const item = items[i-1];
+    if (item) {
+      newSheet.createTextFinder(`<<SL${i}>>`).replaceAllWith(String(i));
+      newSheet.createTextFinder(`<<PRODUCT / QUALITY${i}>>`).replaceAllWith(item.PRODUCT_QUALITY || "");
+      newSheet.createTextFinder(`<<Unit${i}>>`).replaceAllWith(item.UNIT_COUNT ? String(item.UNIT_COUNT) : "");
+      newSheet.createTextFinder(`<<Quantity${i}>>`).replaceAllWith(item.QUANTITY_KG ? String(item.QUANTITY_KG) : "");
+      newSheet.createTextFinder(`<<Rate${i}>>`).replaceAllWith(item.RATE_PER_UNIT ? String(item.RATE_PER_UNIT) : "");
+    } else {
+      newSheet.createTextFinder(`<<SL${i}>>`).replaceAllWith("");
+      newSheet.createTextFinder(`<<PRODUCT / QUALITY${i}>>`).replaceAllWith("");
+      newSheet.createTextFinder(`<<Unit${i}>>`).replaceAllWith("");
+      newSheet.createTextFinder(`<<Quantity${i}>>`).replaceAllWith("");
+      newSheet.createTextFinder(`<<Rate${i}>>`).replaceAllWith("");
+    }
   }
   
   newSheet.createTextFinder("<<Delivery Charges >>").replaceAllWith(params.DELIVERY_CHARGES || "0.00");

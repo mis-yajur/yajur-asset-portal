@@ -62,9 +62,18 @@ export interface Product {
   CREATED_DATE?: string;
 }
 
+export interface PIItem {
+  PRODUCT_QUALITY: string;
+  QUANTITY_KG: number;
+  RATE_PER_UNIT: number;
+  UNIT_COUNT: number;
+  AMOUNT?: number;
+}
+
 export interface PI {
   PI_NO: string;
   INVOICE_DATE: string;
+  ITEMS?: string | PIItem[];
   SELLER_NAME: string;
   SELLER_GSTIN?: string;
   SELLER_CIN?: string;

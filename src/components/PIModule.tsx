@@ -161,9 +161,25 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       const isEdit = piData.some(p => String(p.PI_NO || '').trim().toLowerCase() === piNo.toLowerCase());
       const action = isEdit ? 'updatePI' : 'addPI';
       
-      const qty = Number(currentPI?.QUANTITY_KG) || 0;
-      const rate = Number(currentPI?.RATE_PER_UNIT) || 0;
-      const amount = qty * rate;
+      const items = Array.isArray(currentPI?.ITEMS) ? currentPI.ITEMS : [];
+      let totalQty = 0;
+      let totalAmountBeforeTax = 0;
+      
+      items.forEach(item => {
+          const q = Number(item.QUANTITY_KG) || 0;
+          const r = Number(item.RATE_PER_UNIT) || 0;
+          totalQty += q;
+          totalAmountBeforeTax += (q * r);
+      });
+      
+      const deliveryCharges = Number(currentPI?.DELIVERY_CHARGES) || 0;
+      const cgstPct = Number(currentPI?.CGST_PERCENT) || 0;
+      const sgstPct = Number(currentPI?.SGST_PERCENT) || 0;
+      const igstPct = Number(currentPI?.IGST_PERCENT) || 5;
+      const otherCharges = Number(currentPI?.OTHER_CHARGES) || 0;
+      
+      const taxBase = totalAmountBeforeTax + deliveryCharges;
+      const totalAmount = taxBase + (taxBase * cgstPct / 100) + (taxBase * sgstPct / 100) + (taxBase * igstPct / 100) + otherCharges;
 
       // Ensure INVOICE_DATE is set
       const invoiceDate = currentPI?.INVOICE_DATE || new Date().toISOString().split('T')[0];
@@ -173,10 +189,13 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
         PI_NO: piNo,
         INVOICE_DATE: invoiceDate,
         CUSTOMER_NAME: currentPI?.CUSTOMER_NAME || 'GENERAL ACCOUNT',
-        ITEM_TOTAL: amount,
-        NET_AMOUNT: amount,
-        QUANTITY_KG: qty,
-        RATE_PER_UNIT: rate,
+        ITEM_TOTAL: totalAmountBeforeTax,
+        NET_AMOUNT: totalAmount,
+        QUANTITY_KG: totalQty,
+        RATE_PER_UNIT: items.length > 0 ? items[0].RATE_PER_UNIT : 0,
+        PRODUCT_QUALITY: items.length > 0 ? items[0].PRODUCT_QUALITY : '',
+        UNIT_COUNT: items.length > 0 ? items[0].UNIT_COUNT : 0,
+        ITEMS: JSON.stringify(items),
         SELLER_NAME: 'Yajur Lifting',
         SELLER_GSTIN: '19AAECS2882B3ZB',
         SELLER_CIN: 'U17100WB1980PLC032918',
@@ -282,7 +301,8 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                 setCurrentEntry({ 
                     INVOICE_DATE: new Date().toISOString().split('T')[0],
                     STATUS: 'RUNNING',
-                    AUTHORIZED_SIGNATORY: 'Director'
+                    AUTHORIZED_SIGNATORY: 'Director',
+                    ITEMS: [{ PRODUCT_QUALITY: '', QUANTITY_KG: 0, RATE_PER_UNIT: 0, UNIT_COUNT: 0 }]
                 }); 
                 setIsModalOpen(true); 
             }}
@@ -388,7 +408,22 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                               <Archive size={14} />
                             </button>
                           )}
-                          <button onClick={() => { setCurrentEntry(pi); setIsModalOpen(true); }} className="p-2 text-primary hover:bg-primary/5 rounded-lg transition-all" title="Edit">
+                          <button onClick={() => { 
+                              let parsedItems = pi.ITEMS;
+                              if (typeof parsedItems === 'string') {
+                                  try { parsedItems = JSON.parse(parsedItems); } catch(e) {}
+                              }
+                              if (!parsedItems || !Array.isArray(parsedItems)) {
+                                  parsedItems = [{
+                                      PRODUCT_QUALITY: pi.PRODUCT_QUALITY || '',
+                                      QUANTITY_KG: pi.QUANTITY_KG || 0,
+                                      RATE_PER_UNIT: pi.RATE_PER_UNIT || 0,
+                                      UNIT_COUNT: pi.UNIT_COUNT || 0,
+                                  }];
+                              }
+                              setCurrentEntry({ ...pi, ITEMS: parsedItems }); 
+                              setIsModalOpen(true); 
+                          }} className="p-2 text-primary hover:bg-primary/5 rounded-lg transition-all" title="Edit">
                             <Pencil size={14} />
                           </button>
                           <button onClick={() => handleDelete(pi.PI_NO)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all" title="Delete">
@@ -710,75 +745,119 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                 </div>
 
                 <div className="grid grid-cols-1 gap-8 ring-1 ring-slate-100 p-6 rounded-3xl bg-slate-50/30">
-                    <div className="grid grid-cols-1 gap-6">
-                        <div className="space-y-2">
-                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Product Quality / Detail</label>
-                             <div className="flex gap-2">
-                               <select 
-                                  className="w-1/3 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40 h-fit"
-                                  value=""
-                                  onChange={e => setCurrentEntry({ ...currentPI, PRODUCT_QUALITY: e.target.value })}
-                               >
-                                  <option value="">Quick Select</option>
-                                  {products.map(p => (
-                                      <option key={p.QLTY_CODE} value={p.QLTY_NAME}>{p.QLTY_NAME} ({p.QLTY_CODE})</option>
-                                  ))}
-                               </select>
-                               <textarea 
-                                  required
-                                  rows={2}
-                                  placeholder="e.g. FLAX YARN - 6 LEA NATURAL&#10;UNPOLISHED IN HANK FORM"
-                                  className="w-2/3 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40 resize-none uppercase"
-                                  value={currentPI?.PRODUCT_QUALITY || ''}
-                                  onChange={e => setCurrentEntry({ ...currentPI, PRODUCT_QUALITY: e.target.value })}
-                               />
-                             </div>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b border-border-main pb-2">
+                            <h4 className="text-sm font-black text-primary uppercase tracking-widest">Products</h4>
+                            {Array.isArray(currentPI?.ITEMS) && currentPI.ITEMS.length < 7 && (
+                                <button 
+                                    type="button" 
+                                    onClick={() => {
+                                        const items = Array.isArray(currentPI?.ITEMS) ? [...currentPI.ITEMS] : [];
+                                        items.push({ PRODUCT_QUALITY: '', QUANTITY_KG: 0, RATE_PER_UNIT: 0, UNIT_COUNT: 0 });
+                                        setCurrentEntry({ ...currentPI, ITEMS: items });
+                                    }}
+                                    className="text-[10px] font-black text-accent uppercase hover:underline"
+                                >
+                                    + Add Item
+                                </button>
+                            )}
                         </div>
-                    </div>
+                        
+                        {(Array.isArray(currentPI?.ITEMS) ? currentPI.ITEMS : []).map((item, index) => (
+                            <div key={index} className="grid grid-cols-1 gap-4 p-4 bg-white rounded-2xl border border-slate-100 relative group">
+                                {index > 0 && (
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            const items = [...(currentPI?.ITEMS as any[])];
+                                            items.splice(index, 1);
+                                            setCurrentEntry({ ...currentPI, ITEMS: items });
+                                        }}
+                                        className="absolute top-2 right-2 p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                                <div className="space-y-2 pr-6">
+                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Product Quality / Detail {index + 1}</label>
+                                    <div className="flex gap-2">
+                                        <select 
+                                            className="w-1/3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40 h-fit"
+                                            value=""
+                                            onChange={e => {
+                                                const items = [...(currentPI?.ITEMS as any[])];
+                                                items[index] = { ...items[index], PRODUCT_QUALITY: e.target.value };
+                                                setCurrentEntry({ ...currentPI, ITEMS: items });
+                                            }}
+                                        >
+                                            <option value="">Quick Select</option>
+                                            {products.map(p => (
+                                                <option key={p.QLTY_CODE} value={p.QLTY_NAME}>{p.QLTY_NAME} ({p.QLTY_CODE})</option>
+                                            ))}
+                                        </select>
+                                        <textarea 
+                                            required={index === 0}
+                                            rows={2}
+                                            placeholder="e.g. FLAX YARN - 6 LEA NATURAL&#10;UNPOLISHED IN HANK FORM"
+                                            className="w-2/3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40 resize-none uppercase"
+                                            value={item.PRODUCT_QUALITY}
+                                            onChange={e => {
+                                                const items = [...(currentPI?.ITEMS as any[])];
+                                                items[index] = { ...items[index], PRODUCT_QUALITY: e.target.value };
+                                                setCurrentEntry({ ...currentPI, ITEMS: items });
+                                            }}
+                                        />
+                                    </div>
+                                </div>
 
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Target KG</label>
-                                <input 
-                                    required
-                                    type="number"
-                                    placeholder="5000"
-                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
-                                    value={currentPI?.QUANTITY_KG || ''}
-                                    onChange={e => {
-                                        const qty = Number(e.target.value);
-                                        const rate = currentPI?.RATE_PER_UNIT || 0;
-                                        setCurrentEntry({ ...currentPI, QUANTITY_KG: qty, ITEM_TOTAL: qty * rate, NET_AMOUNT: qty * rate });
-                                    }}
-                                />
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Target KG</label>
+                                        <input 
+                                            required={index === 0}
+                                            type="number"
+                                            placeholder="5000"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
+                                            value={item.QUANTITY_KG || ''}
+                                            onChange={e => {
+                                                const items = [...(currentPI?.ITEMS as any[])];
+                                                items[index] = { ...items[index], QUANTITY_KG: Number(e.target.value) };
+                                                setCurrentEntry({ ...currentPI, ITEMS: items });
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Unit Rate (₹)</label>
+                                        <input 
+                                            required={index === 0}
+                                            type="number"
+                                            placeholder="245.50"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
+                                            value={item.RATE_PER_UNIT || ''}
+                                            onChange={e => {
+                                                const items = [...(currentPI?.ITEMS as any[])];
+                                                items[index] = { ...items[index], RATE_PER_UNIT: Number(e.target.value) };
+                                                setCurrentEntry({ ...currentPI, ITEMS: items });
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Unit/Box</label>
+                                        <input 
+                                            type="number"
+                                            placeholder="133.00"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
+                                            value={item.UNIT_COUNT || ''}
+                                            onChange={e => {
+                                                const items = [...(currentPI?.ITEMS as any[])];
+                                                items[index] = { ...items[index], UNIT_COUNT: Number(e.target.value) };
+                                                setCurrentEntry({ ...currentPI, ITEMS: items });
+                                            }}
+                                        />
+                                    </div>
+                                </div>
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Unit Rate (₹)</label>
-                                <input 
-                                    required
-                                    type="number"
-                                    placeholder="245.50"
-                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
-                                    value={currentPI?.RATE_PER_UNIT || ''}
-                                    onChange={e => {
-                                        const rate = Number(e.target.value);
-                                        const qty = currentPI?.QUANTITY_KG || 0;
-                                        setCurrentEntry({ ...currentPI, RATE_PER_UNIT: rate, ITEM_TOTAL: qty * rate, NET_AMOUNT: qty * rate });
-                                    }}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Total Unit/Box</label>
-                                <input 
-                                    type="number"
-                                    placeholder="133.00"
-                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
-                                    value={currentPI?.UNIT_COUNT || ''}
-                                    onChange={e => setCurrentEntry({ ...currentPI, UNIT_COUNT: Number(e.target.value) })}
-                                />
-                            </div>
-                        </div>
+                        ))}
                     </div>
                 </div>
 
@@ -903,7 +982,23 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                         </div>
                         <div>
                             <div className="text-xs font-black text-primary/40 uppercase tracking-widest">Aggregated Fiscal Impact</div>
-                            <div className="text-3xl font-black text-primary num-font tracking-tight leading-none mt-1">₹{(currentPI?.NET_AMOUNT || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                            <div className="text-3xl font-black text-primary num-font tracking-tight leading-none mt-1">₹{
+                                (() => {
+                                    const items = Array.isArray(currentPI?.ITEMS) ? currentPI.ITEMS : [];
+                                    let totalAmt = 0;
+                                    items.forEach((it: any) => {
+                                        totalAmt += (Number(it.QUANTITY_KG) || 0) * (Number(it.RATE_PER_UNIT) || 0);
+                                    });
+                                    const taxBase = totalAmt + (Number(currentPI?.DELIVERY_CHARGES) || 0);
+                                    const cgst = taxBase * (Number(currentPI?.CGST_PERCENT) || 0) / 100;
+                                    const sgst = taxBase * (Number(currentPI?.SGST_PERCENT) || 0) / 100;
+                                    const igstPct = currentPI?.IGST_PERCENT !== undefined ? Number(currentPI.IGST_PERCENT) : 5;
+                                    const igst = taxBase * igstPct / 100;
+                                    const otherCharges = Number(currentPI?.OTHER_CHARGES) || 0;
+                                    const net = taxBase + cgst + sgst + igst + otherCharges;
+                                    return net.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                })()
+                            }</div>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
