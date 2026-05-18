@@ -172,14 +172,18 @@ function addRow(sheetName, params) {
   }
   let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   
-  if (sheetName === 'pi_data' && headers.indexOf('ITEMS') === -1) {
-    sheet.getRange(1, headers.length + 1).setValue('ITEMS');
-    headers.push('ITEMS');
-  }
-  
   if (sheetName === 'pi_data' && !params.CREATED_AT) {
     params.CREATED_AT = new Date().toISOString();
   }
+
+  let headersChanged = false;
+  Object.keys(params).forEach(k => {
+    if (k !== 'method' && headers.indexOf(k) === -1) {
+      headers.push(k);
+      sheet.getRange(1, headers.length).setValue(k);
+      headersChanged = true;
+    }
+  });
 
   const newRow = headers.map(h => {
     const val = params[h];
@@ -197,7 +201,18 @@ function bulkUpload(sheetName, rows) {
     initializeSheets();
     sheet = ss.getSheetByName(sheetName);
   }
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  
+  let headersChanged = false;
+  rows.forEach(params => {
+    Object.keys(params).forEach(k => {
+      if (k !== 'method' && headers.indexOf(k) === -1) {
+        headers.push(k);
+        sheet.getRange(1, headers.length).setValue(k);
+        headersChanged = true;
+      }
+    });
+  });
   
   const dataToAppend = rows.map(params => {
     return headers.map(h => {
@@ -218,14 +233,19 @@ function updateRow(sheetName, idKey, params) {
     sheet = ss.getSheetByName(sheetName);
   }
   let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  if (sheetName === 'pi_data' && headers.indexOf('ITEMS') === -1) {
-    sheet.getRange(1, headers.length + 1).setValue('ITEMS');
-    headers.push('ITEMS');
-  }
+  
+  let headersChanged = false;
+  Object.keys(params).forEach(k => {
+    if (k !== 'method' && headers.indexOf(k) === -1) {
+      headers.push(k);
+      sheet.getRange(1, headers.length).setValue(k);
+      headersChanged = true;
+    }
+  });
   
   const data = sheet.getDataRange().getValues();
   // Ensure headers match even if added column
-  const currentHeaders = data[0].length < headers.length ? headers : data[0];
+  const currentHeaders = headers; // we mutated headers array above
   const idIndex = currentHeaders.indexOf(idKey);
   
   for (let i = 1; i < data.length; i++) {
@@ -630,12 +650,13 @@ function getReports(startDate, endDate) {
 }
 
 function generatePdfFromTemplate(params) {
+  params = params || {};
   const templateId = "1aTszrbxLJ3tumPSVPp0DAIPHJVq4V25E7btV8lwwgTk";
   const folderId = "1gBoluQTF6-ZWYgIzRb5WwEoxb0BXx56c";
   
   // Make a copy of the template
   const destFolder = DriveApp.getFolderById(folderId);
-  const newFile = DriveApp.getFileById(templateId).makeCopy(`PI_${params.PI_NO}`, destFolder);
+  const newFile = DriveApp.getFileById(templateId).makeCopy(`PI_${params.PI_NO || 'Untitled'}`, destFolder);
   const newSs = SpreadsheetApp.openById(newFile.getId());
   const newSheet = newSs.getSheets()[0];
   
@@ -698,15 +719,8 @@ function generatePdfFromTemplate(params) {
   
   SpreadsheetApp.flush();
   
-  const url = newFile.getUrl().replace(/edit$/, '') + 'export?exportFormat=pdf&format=pdf';
-  const token = ScriptApp.getOAuthToken();
-  const response = UrlFetchApp.fetch(url, {
-    headers: {
-      'Authorization': 'Bearer ' + token
-    }
-  });
-  
-  const blob = response.getBlob().setName(`PI_${params.PI_NO}.pdf`);
+  const blob = newFile.getAs(MimeType.PDF);
+  blob.setName(`PI_${params.PI_NO || 'Untitled'}.pdf`);
   const finalPdf = destFolder.createFile(blob);
   
   // Clean up template copy

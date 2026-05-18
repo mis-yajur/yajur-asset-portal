@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { jsPDF } from 'jspdf';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import html2pdf from 'html2pdf.js';
 import autoTable from 'jspdf-autotable';
 import { 
   FileText, 
@@ -28,6 +28,7 @@ import {
 import { apiCall } from '../services/api';
 import { cn, formatDate } from '../lib/utils';
 import type { PI, Customer, Product, Notification } from '../types';
+import ProformaPDFContent from './pdf/ProformaPDFContent';
 
 interface PIModuleProps {
   onNotify: (title: string, message: string, type?: Notification['type']) => void;
@@ -236,15 +237,31 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
     setPdfGenerationStatus({ loading: true, pi, pdfUrl: null, pdfId: null });
     onNotify('Info', 'Generating PDF using template...', 'info');
     try {
-      const res = await apiCall('generatePdfFromTemplate', pi);
-      if(res.success && res.data) {
-        setPdfGenerationStatus({ loading: false, pi, pdfUrl: res.data.pdfUrl, pdfId: res.data.pdfId });
-        onNotify('Success', 'PDF generated successfully', 'success');
-        onLog('Export PDF', `Generated PI ${pi.PI_NO}`);
-      } else {
-        setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null });
-        onNotify('Error', res.error || 'Failed to generate PDF', 'error');
-      }
+      setTimeout(async () => {
+        try {
+          const element = document.getElementById('pdf-template');
+          if (!element) throw new Error('Template element not found');
+          
+          const opt = {
+            margin:       [0, 0.2, 0, 0.2], // top, left, bottom, right
+            filename:     `PI_${pi.PI_NO}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+          };
+
+          const pdfBase64 = await html2pdf().set(opt).from(element).outputPdf('datauristring');
+          html2pdf().set(opt).from(element).save();
+          
+          setPdfGenerationStatus({ loading: false, pi, pdfUrl: pdfBase64, pdfId: pdfBase64 });
+          onNotify('Success', 'PDF generated successfully', 'success');
+          onLog('Export PDF', `Generated PI ${pi.PI_NO}`);
+        } catch (error: any) {
+           console.error(error);
+           setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null });
+           onNotify('Error', error.message || 'Failed to generate PDF', 'error');
+        }
+      }, 500); // Wait for render
     } catch (error: any) {
       console.error(error);
       setPdfGenerationStatus({ loading: false, pi: null, pdfUrl: null, pdfId: null });
@@ -255,12 +272,13 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
   const sendEmail = async (pdfId: string, piNo: string) => {
     onNotify('Info', 'Sending email...', 'info');
     try {
-      const res = await apiCall('sendEmailWithPdf', { pdfId, emailTo: 'mis@yajurfibres.com', PI_NO: piNo });
+      const base64Data = pdfId.split(',')[1];
+      const res = await apiCall('sendEmailWithPdf', { base64: base64Data, emailTo: 'mis@yajurfibres.com', PI_NO: piNo });
       if(res.success) {
         onNotify('Success', 'Email sent successfully to mis@yajurfibres.com', 'success');
         onLog('Email PDF', `Emailed PI ${piNo}`);
       } else {
-        onNotify('Error', 'Failed to send email', 'error');
+        onNotify('Error', res.error || 'Failed to send email', 'error');
       }
     } catch (error) {
       console.error(error);
@@ -607,11 +625,56 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                     </div>
                     <div className="space-y-2">
                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Auth Signatory</label>
-                        <input 
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
-                            value={currentPI?.AUTHORIZED_SIGNATORY || ''}
-                            onChange={e => setCurrentEntry({ ...currentPI, AUTHORIZED_SIGNATORY: e.target.value })}
-                        />
+                        <div className="flex bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:border-accent/40 transition-all">
+                          <input 
+                              placeholder="Name or leave blank for 'Digitally Signed'"
+                              className="w-full bg-transparent px-4 py-3 text-sm font-bold outline-none"
+                              value={currentPI?.AUTHORIZED_SIGNATORY?.startsWith('data:image') ? 'Signature Image Uploaded' : (currentPI?.AUTHORIZED_SIGNATORY || '')}
+                              onChange={e => setCurrentEntry({ ...currentPI, AUTHORIZED_SIGNATORY: e.target.value })}
+                              disabled={currentPI?.AUTHORIZED_SIGNATORY?.startsWith('data:image')}
+                          />
+                          {currentPI?.AUTHORIZED_SIGNATORY?.startsWith('data:image') && (
+                            <button 
+                              type="button" 
+                              onClick={() => setCurrentEntry({ ...currentPI, AUTHORIZED_SIGNATORY: '' })}
+                              className="px-3 text-red-500 hover:bg-red-50"
+                            >
+                              <X size={16} />
+                            </button>
+                          )}
+                          <label className="bg-slate-100 hover:bg-slate-200 px-4 py-3 border-l border-slate-200 cursor-pointer flex items-center justify-center">
+                            <span className="text-xs font-black uppercase tracking-widest text-slate-600">Upload</span>
+                            <input 
+                               type="file" 
+                               accept="image/*" 
+                               className="hidden" 
+                               onChange={(e) => {
+                                 const file = e.target.files?.[0];
+                                 if (!file) return;
+                                 const reader = new FileReader();
+                                 reader.onload = (ev) => {
+                                   if (ev.target?.result) {
+                                     // Create an image to resize it before saving (keep base64 small)
+                                     const img = new Image();
+                                     img.onload = () => {
+                                       const canvas = document.createElement('canvas');
+                                       const MAX_WIDTH = 200;
+                                       const scaleSize = MAX_WIDTH / img.width;
+                                       canvas.width = MAX_WIDTH;
+                                       canvas.height = img.height * scaleSize;
+                                       const ctx = canvas.getContext('2d');
+                                       ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+                                       const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                                       setCurrentEntry({ ...currentPI, AUTHORIZED_SIGNATORY: compressedBase64 });
+                                     };
+                                     img.src = ev.target.result as string;
+                                   }
+                                 };
+                                 reader.readAsDataURL(file);
+                               }}
+                            />
+                          </label>
+                        </div>
                     </div>
                 </div>
 
@@ -1050,6 +1113,13 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
           </div>
         </div>
       )}
+
+      {/* Hidden container for PDF rendering */}
+      <div className="absolute top-[-9999px] left-[-9999px]">
+        {pdfGenerationStatus.loading && pdfGenerationStatus.pi && (
+           <ProformaPDFContent pi={pdfGenerationStatus.pi} />
+        )}
+      </div>
     </div>
   );
 }
