@@ -548,41 +548,42 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
 
       {/* PI Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-10">
-          <div className="absolute inset-0 bg-primary/40 backdrop-blur-md" onClick={() => setIsModalOpen(false)} />
-          <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-200">
-             <div className="bg-primary text-white p-8">
-                <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 md:p-6">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setIsModalOpen(false)} />
+          <div className="bg-slate-50 w-full max-w-[1400px] h-full max-h-[1000px] md:rounded-[2rem] shadow-2xl relative z-10 flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 ring-1 ring-slate-900/5">
+             <div className="bg-slate-900 text-slate-100 p-6 md:p-8 shrink-0 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-transparent"></div>
+                <div className="flex items-center justify-between relative z-10">
                     <div>
-                        <h3 className="text-2xl font-black uppercase tracking-tight">Proforma Generation</h3>
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Fiscal Document Interface</p>
+                        <h3 className="text-2xl font-black uppercase tracking-tight text-white drop-shadow-md">Proforma Generation</h3>
+                        <p className="text-[10px] text-indigo-200/80 font-bold uppercase tracking-widest mt-1">Fiscal Document Interface</p>
                     </div>
-                    <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
-                        <Activity size={24} className="rotate-45" />
+                    <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/10 text-slate-400 hover:text-white rounded-xl transition-colors">
+                        <Activity size={28} className="rotate-45" />
                     </button>
                 </div>
 
-                <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-6 bg-white/5 p-5 rounded-2xl border border-white/10">
+                <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 relative z-10 p-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm shadow-inner shadow-black/20">
                     <div>
-                        <div className="text-[11px] font-black text-slate-500 uppercase mb-1">Seller Identity</div>
-                        <div className="text-sm font-black">Yajur Lifting</div>
+                        <div className="text-[10px] font-black text-indigo-300/80 uppercase mb-1">Seller Identity</div>
+                        <div className="text-sm font-black text-white drop-shadow-sm">Yajur Lifting</div>
                     </div>
                     <div>
-                        <div className="text-[11px] font-black text-slate-500 uppercase mb-1">Tax Fingerprint</div>
-                        <div className="text-sm font-black line-clamp-1">19AAECS2882B3ZB</div>
+                        <div className="text-[10px] font-black text-indigo-300/80 uppercase mb-1">Tax Fingerprint</div>
+                        <div className="text-sm font-black text-white line-clamp-1 drop-shadow-sm">19AAECS2882B3ZB</div>
                     </div>
                     <div>
-                        <div className="text-[11px] font-black text-slate-500 uppercase mb-1">Corporate CIN</div>
-                        <div className="text-sm font-black line-clamp-1 truncate">U17100WB1980PLC032918</div>
+                        <div className="text-[10px] font-black text-indigo-300/80 uppercase mb-1">Corporate CIN</div>
+                        <div className="text-sm font-black text-white line-clamp-1 truncate drop-shadow-sm">U17100WB1980PLC032918</div>
                     </div>
                     <div>
-                        <div className="text-[11px] font-black text-slate-500 uppercase mb-1">Certificate Stat</div>
-                        <div className="text-sm font-black">BVFR14492922</div>
+                        <div className="text-[10px] font-black text-indigo-300/80 uppercase mb-1">Certificate Stat</div>
+                        <div className="text-sm font-black text-white drop-shadow-sm">BVFR14492922</div>
                     </div>
                 </div>
              </div>
 
-             <form onSubmit={handleSave} className="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
+             <form onSubmit={handleSave} className="p-4 md:p-8 space-y-6 md:space-y-8 flex-1 overflow-y-auto bg-slate-50/50">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">PI Sequence ID</label>
@@ -998,14 +999,15 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                     </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-primary/5 p-8 rounded-[2rem] border border-primary/10">
-                    <div className="flex items-center gap-6">
-                        <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-white shadow-xl shadow-indigo-900/20">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-slate-900 p-8 rounded-[2rem] border border-slate-800 shadow-xl relative overflow-hidden mt-8">
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 via-purple-500/10 to-transparent"></div>
+                    <div className="flex items-center gap-6 relative z-10">
+                        <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 shadow-inner shadow-black/20 ring-1 ring-white/10">
                             <CreditCard size={28} />
                         </div>
                         <div>
-                            <div className="text-xs font-black text-primary/40 uppercase tracking-widest">Aggregated Fiscal Impact</div>
-                            <div className="text-3xl font-black text-primary num-font tracking-tight leading-none mt-1">₹{
+                            <div className="text-[10px] font-black text-indigo-200/70 uppercase tracking-widest drop-shadow-sm">Aggregated Fiscal Impact</div>
+                            <div className="text-3xl font-black text-white num-font tracking-tight leading-none mt-1 drop-shadow-md">₹{
                                 (() => {
                                     const items = Array.isArray(currentPI?.ITEMS) ? currentPI.ITEMS : [];
                                     let totalAmt = 0;
@@ -1024,11 +1026,11 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                             }</div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 relative z-10">
                         <button 
                             type="button" 
                             onClick={() => setIsModalOpen(false)}
-                            className="px-8 py-4 bg-white border border-slate-200 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all shadow-sm"
+                            className="px-8 py-4 bg-white/10 border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-300 hover:bg-white/20 hover:text-white transition-all shadow-sm"
                         >
                             Abort
                         </button>
@@ -1036,7 +1038,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                             type="submit"
                             disabled={isLoading}
                             className={cn(
-                                "px-10 py-4 bg-accent text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-accent/20 hover:scale-105 active:scale-95 transition-all",
+                                "px-10 py-4 bg-indigo-500 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all",
                                 isLoading && "opacity-50 cursor-not-allowed scale-100"
                             )}
                         >
