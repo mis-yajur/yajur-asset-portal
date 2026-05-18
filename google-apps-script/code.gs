@@ -176,6 +176,20 @@ function addRow(sheetName, params) {
     params.CREATED_AT = new Date().toISOString();
   }
 
+  if (params.AUTHORIZED_SIGNATORY && String(params.AUTHORIZED_SIGNATORY).startsWith('data:image')) {
+    try {
+      const folderId = "1Pq0Fysb38dKR0HLGhBmKXtGlXssFV5AL";
+      const folder = DriveApp.getFolderById(folderId);
+      const base64Data = params.AUTHORIZED_SIGNATORY.split(',')[1];
+      const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), 'image/jpeg', 'Sign_' + new Date().getTime() + '.jpg');
+      const file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      params.AUTHORIZED_SIGNATORY = 'https://drive.google.com/uc?id=' + file.getId();
+    } catch (e) {
+      console.error('Failed to upload signatory image: ', e);
+    }
+  }
+
   let headersChanged = false;
   Object.keys(params).forEach(k => {
     if (k !== 'method' && headers.indexOf(k) === -1) {
@@ -233,6 +247,20 @@ function updateRow(sheetName, idKey, params) {
     sheet = ss.getSheetByName(sheetName);
   }
   let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+  if (params.AUTHORIZED_SIGNATORY && String(params.AUTHORIZED_SIGNATORY).startsWith('data:image')) {
+    try {
+      const folderId = "1Pq0Fysb38dKR0HLGhBmKXtGlXssFV5AL";
+      const folder = DriveApp.getFolderById(folderId);
+      const base64Data = params.AUTHORIZED_SIGNATORY.split(',')[1];
+      const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), 'image/jpeg', 'Sign_' + new Date().getTime() + '.jpg');
+      const file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      params.AUTHORIZED_SIGNATORY = 'https://drive.google.com/uc?id=' + file.getId();
+    } catch (e) {
+      console.error('Failed to upload signatory image: ', e);
+    }
+  }
   
   let headersChanged = false;
   Object.keys(params).forEach(k => {

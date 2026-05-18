@@ -662,11 +662,11 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                           <input 
                               placeholder="Name or leave blank for 'Digitally Signed'"
                               className="w-full bg-transparent px-4 py-3 text-sm font-bold outline-none"
-                              value={currentPI?.AUTHORIZED_SIGNATORY?.startsWith('data:image') ? 'Signature Image Uploaded' : (currentPI?.AUTHORIZED_SIGNATORY || '')}
+                              value={(currentPI?.AUTHORIZED_SIGNATORY?.startsWith('data:image') || currentPI?.AUTHORIZED_SIGNATORY?.startsWith('http')) ? 'Signature Image Attached' : (currentPI?.AUTHORIZED_SIGNATORY || '')}
                               onChange={e => setCurrentEntry({ ...currentPI, AUTHORIZED_SIGNATORY: e.target.value })}
-                              disabled={currentPI?.AUTHORIZED_SIGNATORY?.startsWith('data:image')}
+                              disabled={(currentPI?.AUTHORIZED_SIGNATORY?.startsWith('data:image') || currentPI?.AUTHORIZED_SIGNATORY?.startsWith('http'))}
                           />
-                          {currentPI?.AUTHORIZED_SIGNATORY?.startsWith('data:image') && (
+                          {(currentPI?.AUTHORIZED_SIGNATORY?.startsWith('data:image') || currentPI?.AUTHORIZED_SIGNATORY?.startsWith('http')) && (
                             <button 
                               type="button" 
                               onClick={() => setCurrentEntry({ ...currentPI, AUTHORIZED_SIGNATORY: '' })}

@@ -181,8 +181,8 @@ export default function ProformaPDFContent({ pi }: Props) {
              
              {/* Signature Image or Text */}
              <div className="mt-10 mb-2 h-16 flex items-center justify-center w-full">
-               {pi.AUTHORIZED_SIGNATORY?.startsWith('data:image') ? (
-                 <img src={pi.AUTHORIZED_SIGNATORY} alt="Signature" className="max-h-16 object-contain mix-blend-multiply" />
+               {(pi.AUTHORIZED_SIGNATORY?.startsWith('http') || pi.AUTHORIZED_SIGNATORY?.startsWith('data:image')) ? (
+                 <img src={pi.AUTHORIZED_SIGNATORY} alt="Signature" className="max-h-16 object-contain mix-blend-multiply" crossOrigin="anonymous" />
                ) : pi.AUTHORIZED_SIGNATORY ? (
                  <span className="font-black text-[#dc424e] border-b border-[#dc424e] pb-1 tracking-widest">{pi.AUTHORIZED_SIGNATORY}</span>
                ) : (
