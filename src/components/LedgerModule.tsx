@@ -307,19 +307,15 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
         .map(e => ({
           ID: Math.random().toString(36).substr(2, 9).toUpperCase(),
           DATE: new Date(e.date).toLocaleString(),
-          PI_NO: e.piNo || '',
-          ACCOUNT: e.account || '',
+          ACCOUNT_PI: activeTab === 'stock' ? e.account : (e.piNo || e.group),
           TYPE: e.type || '',
-          QTY: e.qty || 0,
+          INWARD_TARGET_KG: activeTab === 'stock' ? (e.qtyIn || 0) : (e.isInitial ? e.qty : 0),
+          OUTWARD_DELIVERED_KG: activeTab === 'stock' ? (e.qtyOut || 0) : (!e.isInitial ? e.qty : 0),
           RATE: e.rate || 0,
-          DELIVERED_AMT: e.debitAmt || 0,
-          PRICE_BALANCE: e.balanceAmt || 0,
-          QTY_BALANCE: e.balanceQty || 0,
-          REMARKS: e.remarks || '',
-          // Aliases for historical compatibility with old sheet headers
-          DEBIT_TARGET: e.isInitial ? e.qty : 0,
-          CREDIT_DELIVERED: e.isInitial ? 0 : e.debitAmt,
-          BALANCE: e.balanceAmt
+          VALUE_AMOUNT: activeTab === 'stock' ? e.amount : (e.isInitial ? (e.qty * e.rate) : e.debitAmt),
+          BALANCE_KG: e.balanceQty || 0,
+          BALANCE_AMOUNT: e.balanceAmt || 0,
+          REMARKS: e.remarks || ''
         }));
 
       // onNotify('Info', 'Initiating connection to mainframe...', 'info');
@@ -342,17 +338,18 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     let tableData = [];
     let head = [];
     if (activeTab === 'party') {
-      head = [['Account', 'Date', 'Type', 'PI Ref', 'Qty', 'Rate', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)']];
+      head = [['Account', 'Date', 'Type', 'PI Ref', 'Inward Target (Kg)', 'Target Value (₹)', 'Outward Delivered (Kg)', 'Delivered Value (₹)', 'Balance (Kg)', 'Balance (₹)']];
       tableData = filteredLedger.filter(e => !e.isSummary).map(e => [
         e.group,
         new Date(e.date).toLocaleDateString(),
         e.type,
         e.piNo,
-        e.qty + ' kg',
-        '₹' + (e.rate || 0),
-        e.debitAmt?.toFixed(2),
-        e.creditAmt?.toFixed(2),
-        e.balanceAmt?.toFixed(2)
+        e.isInitial ? e.qty + ' kg' : '-',
+        e.isInitial ? '₹' + (e.qty * e.rate).toFixed(2) : '-',
+        !e.isInitial ? e.qty + ' kg' : '-',
+        !e.isInitial ? '₹' + e.debitAmt?.toFixed(2) : '-',
+        e.balanceQty + ' kg',
+        '₹' + Math.abs(e.balanceAmt)?.toFixed(2)
       ]);
     } else {
       head = [['PI No', 'Date', 'Type', 'Account', 'Inward (Kg)', 'Outward (Kg)', 'Balance (Kg)']];
@@ -384,9 +381,9 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     let headers = [];
     let rows = [];
     if (activeTab === 'party') {
-      headers = ['Account', 'Date', 'Type', 'PI No', 'Qty', 'Rate', 'Debit Amount', 'Credit Amount', 'Balance Amount', 'Remarks'];
+      headers = ['Account', 'Date', 'Type', 'PI No', 'Inward Target (Kg)', 'Target Value', 'Outward Delivered (Kg)', 'Delivered Value', 'Balance (Kg)', 'Balance Value', 'Remarks'];
       rows = filteredLedger.filter(e => !e.isSummary).map(e => [
-        `"${e.group}"`, `"${new Date(e.date).toLocaleDateString()}"`, `"${e.type}"`, `"${e.piNo}"`, e.qty, e.rate, e.debitAmt, e.creditAmt, e.balanceAmt, `"${e.remarks}"`
+        `"${e.group}"`, `"${new Date(e.date).toLocaleDateString()}"`, `"${e.type}"`, `"${e.piNo}"`, e.isInitial ? e.qty : 0, e.isInitial ? e.qty * e.rate : 0, !e.isInitial ? e.qty : 0, !e.isInitial ? e.debitAmt : 0, e.balanceQty, e.balanceAmt, `"${e.remarks}"`
       ]);
     } else {
       headers = ['PI No', 'Date', 'Type', 'Account', 'Qty IN (Stock)', 'Qty OUT (Delivered)', 'Balance', 'Remarks'];
@@ -504,24 +501,21 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                   </div>
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-white border-b border-border-main text-xs uppercase text-text-dim tracking-wider font-extrabold">
-                        <th className="p-4">Date</th>
-                        <th className="p-4">Particulars / Type</th>
-                        <th className="p-4">Reference</th>
+                      <tr className="bg-green-50/30 border-b border-green-100 text-[10px] uppercase text-green-800 tracking-widest font-extrabold">
+                        <th className="p-4">Entry Date</th>
+                        <th className="p-4">Particulars / Ref</th>
                         
                         {activeTab === 'stock' ? (
                           <>
-                            <th className="p-4 bg-green-50/30 text-green-600 text-right">Inward (Kg)</th>
-                            <th className="p-4 bg-red-50/30 text-red-600 text-right">Outward (Kg)</th>
-                            <th className="p-4 text-right text-primary-main">Balance (Kg)</th>
+                            <th className="p-4 text-center">Inward (Kg)</th>
+                            <th className="p-4 text-center">Outward (Kg)</th>
+                            <th className="p-4 text-center">Balance (Kg)</th>
                           </>
                         ) : (
                           <>
-                            <th className="p-4 text-right">Delivered Qty</th>
-                            <th className="p-4 text-right">Rate</th>
-                            <th className="p-4 bg-red-50/30 text-red-600 text-right">Delivered Amt</th>
-                            <th className="p-4 text-right text-primary-main">Price Balance</th>
-                            <th className="p-4 text-right text-indigo-600 font-black">Qty Balance</th>
+                            <th className="p-4 text-center">Inward / Target</th>
+                            <th className="p-4 text-center">Outward (Delivered)</th>
+                            <th className="p-4 text-center">Balance</th>
                           </>
                         )}
                         
@@ -529,49 +523,59 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                     </thead>
                     <tbody className="text-sm font-semibold text-text-main divide-y divide-border-main/50">
                       {(items as any[]).map((entry, idx) => {
-                        if (entry.isSummary) return null; // Used for closing balance display
+                        if (entry.isSummary) return null;
                         return (
                           <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-4 text-text-dim">{new Date(entry.date).toLocaleDateString()}</td>
-                            <td className="p-4 capitalize">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
-                                {entry.type}
-                              </span>
+                            <td className="p-4">
+                               <div className="text-xs font-black text-slate-800">{new Date(entry.date).toLocaleDateString()}</div>
+                               <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                             </td>
-                            <td className="p-4 font-mono text-xs text-text-dim">
-                               {activeTab === 'stock' ? entry.account : entry.piNo}
+                            <td className="p-4">
+                               <div className="flex flex-col gap-1.5 items-start">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'bg-teal-50 text-teal-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                                    {entry.type}
+                                  </span>
+                                  <span className="font-mono text-[10px] text-slate-500 font-bold">
+                                    {activeTab === 'stock' ? entry.account : entry.piNo}
+                                  </span>
+                               </div>
                             </td>
                             
                             {activeTab === 'stock' ? (
                               <>
-                                <td className="p-4 text-right">
-                                  {entry.qtyIn > 0 ? <span className="text-green-600 font-bold">{entry.qtyIn.toLocaleString()}</span> : '-'}
+                                <td className="p-4 text-center">
+                                  {entry.qtyIn > 0 ? <span className="text-indigo-600 font-black">{entry.qtyIn.toLocaleString()} kg</span> : <span className="text-slate-300">-</span>}
                                 </td>
-                                <td className="p-4 text-right">
-                                  {entry.qtyOut > 0 ? <span className="text-red-500 font-bold">{entry.qtyOut.toLocaleString()}</span> : '-'}
+                                <td className="p-4 text-center">
+                                  {entry.qtyOut > 0 ? <span className="text-teal-600 font-black">{entry.qtyOut.toLocaleString()} kg</span> : <span className="text-slate-300">-</span>}
                                 </td>
-                                <td className="p-4 text-right">
-                                  <span className="bg-primary-main text-white px-2 py-1 rounded font-bold">{entry.balanceQty.toLocaleString()}</span>
+                                <td className="p-4 text-center">
+                                  <span className="text-slate-900 font-black">{entry.balanceQty.toLocaleString()} kg</span>
                                 </td>
                               </>
                             ) : (
                               <>
-                                <td className="p-4 text-right font-bold">
-                                  {entry.isInitial ? entry.qty.toLocaleString() : entry.qty.toLocaleString()}
+                                <td className="p-4 text-center">
+                                  {entry.isInitial ? (
+                                     <div className="flex flex-col items-center">
+                                        <span className="text-indigo-600 font-black text-sm">{entry.qty.toLocaleString()} kg</span>
+                                        <span className="text-indigo-600/70 font-bold text-[10px] mt-0.5 tracking-wider">₹{(entry.qty * entry.rate).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                     </div>
+                                  ) : <span className="text-slate-300">-</span>}
                                 </td>
-                                <td className="p-4 text-right">
-                                  ₹{entry.rate}
+                                <td className="p-4 text-center">
+                                  {!entry.isInitial ? (
+                                     <div className="flex flex-col items-center">
+                                        <span className="text-teal-600 font-black text-sm">{entry.qty.toLocaleString()} kg</span>
+                                        <span className="text-teal-600/70 font-bold text-[10px] mt-0.5 tracking-wider">₹{entry.debitAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                     </div>
+                                  ) : <span className="text-slate-300">-</span>}
                                 </td>
-                                <td className="p-4 text-right">
-                                  {entry.debitAmt > 0 ? <div className="text-red-500 font-bold">₹{entry.debitAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</div> : '₹0.00'}
-                                </td>
-                                <td className="p-4 text-right text-primary-main font-black">
-                                  ₹{Math.abs(entry.balanceAmt).toLocaleString(undefined, {minimumFractionDigits: 2})}
-                                </td>
-                                <td className="p-4 text-right">
-                                  <span className="bg-indigo-600 text-white px-3 py-1 rounded-lg font-black text-xs uppercase tracking-tighter">
-                                    {Math.abs(entry.balanceQty).toLocaleString()} kg
-                                  </span>
+                                <td className="p-4 text-center">
+                                   <div className="flex flex-col items-center">
+                                      <span className="text-slate-900 font-black text-sm">{Math.abs(entry.balanceQty).toLocaleString()} kg</span>
+                                      <span className="text-slate-500 font-bold text-[10px] mt-0.5 tracking-wider">₹{Math.abs(entry.balanceAmt).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                   </div>
                                 </td>
                               </>
                             )}
