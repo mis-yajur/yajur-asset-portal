@@ -231,7 +231,11 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     const res: any[] = [];
     Object.keys(grouped).sort().forEach(group => {
        let balQty = 0;
-       grouped[group].sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach((entry: any) => {
+       grouped[group].sort((a: any, b: any) => {
+           if (a.isInitial && !b.isInitial) return -1;
+           if (!a.isInitial && b.isInitial) return 1;
+           return new Date(a.date).getTime() - new Date(b.date).getTime();
+       }).forEach((entry: any) => {
          if (activeTab === 'stock') {
             balQty += entry.qtyIn - entry.qtyOut;
             res.push({ ...entry, balanceQty: balQty });
@@ -430,31 +434,28 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                   </div>
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-green-50/30 border-b border-green-100 text-[10px] uppercase text-green-800 tracking-widest font-extrabold">
                         {activeTab === 'stock' ? (
-                          <>
+                          <tr className="bg-green-50/30 border-b border-green-100 text-[10px] uppercase text-green-800 tracking-widest font-extrabold">
                             <th className="p-4">Entry Date</th>
                             <th className="p-4">Particulars / Ref</th>
                             <th className="p-4 text-center">Inward (Kg)</th>
                             <th className="p-4 text-center">Outward (Kg)</th>
                             <th className="p-4 text-center">Balance (Kg)</th>
-                          </>
+                          </tr>
                         ) : (
-                          <>
-                            <th className="p-4">ENTRY DATE</th>
-                            <th className="p-4 text-center">INWARD / TARGET</th>
-                            <th className="p-4 text-center">OUTWARD (DELIVERED)</th>
-                            <th className="p-4 text-center">BALANCE</th>
-                          </>
+                          <tr className="bg-green-50 text-green-800 border-b border-green-100">
+                            <th className="px-6 py-3 text-xs font-black uppercase tracking-widest">ENTRY DATE</th>
+                            <th className="px-6 py-3 text-xs font-black uppercase tracking-widest text-center">INWARD / TARGET</th>
+                            <th className="px-6 py-3 text-xs font-black uppercase tracking-widest text-center">OUTWARD (DELIVERED)</th>
+                            <th className="px-6 py-3 text-xs font-black uppercase tracking-widest text-center">BALANCE</th>
+                          </tr>
                         )}
-                        
-                      </tr>
                     </thead>
-                    <tbody className="text-sm font-semibold text-text-main divide-y divide-border-main/50">
+                    <tbody className="divide-y divide-border-main/50">
                       {(items as any[]).map((entry, idx) => {
                         if (entry.isSummary) return null;
                         return (
-                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                          <tr key={idx} className={`hover:bg-slate-50 transition-colors ${activeTab === 'party' ? (entry.isInitial ? 'bg-blue-50/50' : 'bg-green-50/10') : ''}`}>
                             {activeTab === 'stock' ? (
                               <>
                                 <td className="p-4">
@@ -483,24 +484,24 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                               </>
                             ) : (
                               <>
-                                <td className="p-4">
+                                <td className="px-6 py-4">
                                    {entry.isInitial ? (
-                                      <div className="text-xs font-black text-teal-800 tracking-wide">Initial Allocation</div>
+                                      <div className="text-sm font-bold text-indigo-700 tracking-tight">Initial Allocation</div>
                                    ) : (
-                                     <div className="flex flex-wrap items-center gap-3">
-                                       <div className="text-xs font-black text-slate-800 whitespace-nowrap">{new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}</div>
-                                       <div className="text-[10px] font-black text-teal-700 whitespace-nowrap">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                                     </div>
+                                      <div className="text-sm font-black text-teal-900 whitespace-nowrap">
+                                        {new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}
+                                        <span className="text-xs font-bold text-teal-700 ml-3">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toUpperCase()}</span>
+                                      </div>
                                    )}
                                 </td>
-                                <td className="p-4 text-center">
-                                  {entry.isInitial ? <span className="text-indigo-600 font-bold text-xs">{entry.qtyIn > 0 ? entry.qtyIn.toLocaleString() : entry.qtyOut.toLocaleString()} kg</span> : <span className="text-teal-600 font-bold text-xs">-</span>}
+                                <td className="px-6 py-4 text-center">
+                                  {entry.isInitial ? <span className="text-indigo-600 font-bold text-sm">{entry.qtyIn > 0 ? entry.qtyIn.toLocaleString() : entry.qtyOut.toLocaleString()} kg</span> : <span className="text-teal-600 font-bold text-sm">-</span>}
                                 </td>
-                                <td className="p-4 text-center">
-                                  {!entry.isInitial && entry.qtyOut > 0 ? <span className="text-teal-600 font-bold text-xs">{entry.qtyOut.toLocaleString()} kg</span> : <span className="text-teal-600 font-bold text-xs">-</span>}
+                                <td className="px-6 py-4 text-center">
+                                  {!entry.isInitial && entry.qtyOut > 0 ? <span className="text-teal-600 font-bold text-sm">{entry.qtyOut.toLocaleString()} kg</span> : <span className="text-slate-800 font-bold text-sm">-</span>}
                                 </td>
-                                <td className="p-4 text-center">
-                                   <span className="text-slate-900 font-bold text-xs">{Math.abs(entry.balanceQty).toLocaleString()} kg</span>
+                                <td className="px-6 py-4 text-center">
+                                   <span className="text-slate-800 font-bold text-sm">{Math.abs(entry.balanceQty).toLocaleString()} kg</span>
                                 </td>
                               </>
                             )}
