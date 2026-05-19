@@ -383,7 +383,7 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     if (activeTab === 'party') {
       headers = ['Account', 'Date', 'Type', 'PI No', 'Inward Target (Kg)', 'Target Value', 'Outward Delivered (Kg)', 'Delivered Value', 'Balance (Kg)', 'Balance Value', 'Remarks'];
       rows = filteredLedger.filter(e => !e.isSummary).map(e => [
-        `"${e.group}"`, `"${new Date(e.date).toLocaleDateString()}"`, `"${e.type}"`, `"${e.piNo}"`, e.isInitial ? e.qty : 0, e.isInitial ? e.qty * e.rate : 0, !e.isInitial ? e.qty : 0, !e.isInitial ? e.debitAmt : 0, e.balanceQty, e.balanceAmt, `"${e.remarks}"`
+        `"${e.group}"`, `"${new Date(e.date).toLocaleDateString()}"`, `"${e.type}"`, `"${e.piNo}"`, e.isInitial ? e.qty : 0, e.isInitial ? e.qty * e.rate : 0, !e.isInitial ? e.qty : 0, !e.isInitial ? e.debitAmt : 0, e.balanceQty, Math.abs(e.balanceAmt), `"${e.remarks}"`
       ]);
     } else {
       headers = ['PI No', 'Date', 'Type', 'Account', 'Qty IN (Stock)', 'Qty OUT (Delivered)', 'Balance', 'Remarks'];
