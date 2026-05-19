@@ -501,21 +501,25 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                   </div>
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-green-50/30 border-b border-green-100 text-[10px] uppercase text-green-800 tracking-widest font-extrabold">
-                        <th className="p-4">Entry Date</th>
-                        <th className="p-4">Particulars / Ref</th>
-                        
+                      <tr className="bg-white border-b border-border-main text-[10px] uppercase text-green-800 tracking-widest font-extrabold">
                         {activeTab === 'stock' ? (
                           <>
+                            <th className="p-4">Entry Date</th>
+                            <th className="p-4">Particulars / Ref</th>
                             <th className="p-4 text-center">Inward (Kg)</th>
                             <th className="p-4 text-center">Outward (Kg)</th>
                             <th className="p-4 text-center">Balance (Kg)</th>
                           </>
                         ) : (
                           <>
-                            <th className="p-4 text-center">Inward / Target</th>
-                            <th className="p-4 text-center">Outward (Delivered)</th>
-                            <th className="p-4 text-center">Balance</th>
+                            <th className="p-4">Date</th>
+                            <th className="p-4">Particulars / Type</th>
+                            <th className="p-4">Reference</th>
+                            <th className="p-4 text-center">Delivered Qty</th>
+                            <th className="p-4 text-center">Rate</th>
+                            <th className="p-4 text-center text-red-600">Delivered Amt</th>
+                            <th className="p-4 text-center bg-green-50/50">Price Balance</th>
+                            <th className="p-4 text-center text-indigo-700">Qty Balance</th>
                           </>
                         )}
                         
@@ -526,23 +530,22 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                         if (entry.isSummary) return null;
                         return (
                           <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-4">
-                               <div className="text-xs font-black text-slate-800">{new Date(entry.date).toLocaleDateString()}</div>
-                               <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                            </td>
-                            <td className="p-4">
-                               <div className="flex flex-col gap-1.5 items-start">
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'bg-teal-50 text-teal-700' : 'bg-indigo-50 text-indigo-700'}`}>
-                                    {entry.type}
-                                  </span>
-                                  <span className="font-mono text-[10px] text-slate-500 font-bold">
-                                    {activeTab === 'stock' ? entry.account : entry.piNo}
-                                  </span>
-                               </div>
-                            </td>
-                            
                             {activeTab === 'stock' ? (
                               <>
+                                <td className="p-4">
+                                   <div className="text-xs font-black text-slate-800">{new Date(entry.date).toLocaleDateString()}</div>
+                                   <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                </td>
+                                <td className="p-4">
+                                   <div className="flex flex-col gap-1.5 items-start">
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'bg-teal-50 text-teal-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                                        {entry.type}
+                                      </span>
+                                      <span className="font-mono text-[10px] text-slate-500 font-bold">
+                                        {entry.account}
+                                      </span>
+                                   </div>
+                                </td>
                                 <td className="p-4 text-center">
                                   {entry.qtyIn > 0 ? <span className="text-indigo-600 font-black">{entry.qtyIn.toLocaleString()} kg</span> : <span className="text-slate-300">-</span>}
                                 </td>
@@ -555,27 +558,32 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                               </>
                             ) : (
                               <>
-                                <td className="p-4 text-center">
-                                  {entry.isInitial ? (
-                                     <div className="flex flex-col items-center">
-                                        <span className="text-indigo-600 font-black text-sm">{entry.qty.toLocaleString()} kg</span>
-                                        <span className="text-indigo-600/70 font-bold text-[10px] mt-0.5 tracking-wider">₹{(entry.qty * entry.rate).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                                     </div>
-                                  ) : <span className="text-slate-300">-</span>}
+                                <td className="p-4">
+                                   <div className="text-xs font-black text-slate-800">{new Date(entry.date).toLocaleDateString()}</div>
+                                   <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                </td>
+                                <td className="p-4">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'bg-red-50 text-red-600' : 'bg-indigo-50 text-indigo-700'}`}>
+                                    {entry.type}
+                                  </span>
+                                </td>
+                                <td className="p-4">
+                                  <span className="font-mono text-[10px] text-slate-500 font-bold tracking-widest">{entry.piNo}</span>
+                                </td>
+                                <td className="p-4 text-center font-bold">
+                                  {entry.qty ? entry.qty.toLocaleString() : '-'}
+                                </td>
+                                <td className="p-4 text-center font-mono text-xs font-bold text-slate-600">
+                                  {entry.rate ? `₹${entry.rate}` : '-'}
                                 </td>
                                 <td className="p-4 text-center">
-                                  {!entry.isInitial ? (
-                                     <div className="flex flex-col items-center">
-                                        <span className="text-teal-600 font-black text-sm">{entry.qty.toLocaleString()} kg</span>
-                                        <span className="text-teal-600/70 font-bold text-[10px] mt-0.5 tracking-wider">₹{entry.debitAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                                     </div>
-                                  ) : <span className="text-slate-300">-</span>}
+                                  <span className="text-red-600 font-bold">₹{entry.debitAmt ? entry.debitAmt.toLocaleString(undefined, {minimumFractionDigits: 2}) : '0.00'}</span>
+                                </td>
+                                <td className="p-4 text-center bg-green-50/20">
+                                   <span className="text-green-700 font-black">₹{Math.abs(entry.balanceAmt || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                                 </td>
                                 <td className="p-4 text-center">
-                                   <div className="flex flex-col items-center">
-                                      <span className="text-slate-900 font-black text-sm">{entry.balanceQty.toLocaleString()} kg</span>
-                                      <span className="text-slate-500 font-bold text-[10px] mt-0.5 tracking-wider">₹{Math.abs(entry.balanceAmt).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                                   </div>
+                                  <span className="bg-indigo-600 text-white px-2 py-1 rounded text-xs font-black uppercase tracking-widest">{Math.abs(entry.balanceQty || 0).toLocaleString()} kg</span>
                                 </td>
                               </>
                             )}
