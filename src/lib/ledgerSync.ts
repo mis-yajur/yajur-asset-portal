@@ -22,12 +22,23 @@ export async function syncLedgerToSheet() {
     const allLifts = Array.from(liftMap.values());
 
     const parsedLifts = allLifts.map((item: any) => {
-      let historyStr = item.HISTORY || item.history || item.DELIVERY_HISTORY || item.NOTES;
-      let history = historyStr;
-      if (typeof history === 'string') {
-        try { history = JSON.parse(historyStr); } catch (e) { history = []; }
+      let history: any[] = [];
+      const fieldsToCheck = [item.NOTES, item.HISTORY, item.history, item.DELIVERY_HISTORY];
+      for (const field of fieldsToCheck) {
+        if (typeof field === 'string' && field.trim().startsWith('[')) {
+          try {
+            const parsed = JSON.parse(field);
+            if (Array.isArray(parsed)) {
+              history = parsed;
+              break;
+            }
+          } catch (e) {}
+        } else if (Array.isArray(field)) {
+          history = field;
+          break;
+        }
       }
-      return { ...item, HISTORY: Array.isArray(history) ? history : [] };
+      return { ...item, HISTORY: history };
     });
 
     const partyEntries: any[] = [];
