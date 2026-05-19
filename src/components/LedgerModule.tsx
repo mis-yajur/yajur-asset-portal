@@ -20,22 +20,165 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
   const fetchLedger = async () => {
       setIsLoading(true);
       try {
-        console.log("Fetching ledger data...");
-        const res = await apiCall('getLedger');
-        console.log("Got ledger data length:", res.data?.length);
-        if (!res.data || res.data.length === 0) {
-           console.log("Ledger empty, syncing from PI and Lifting...");
-           await syncLedgerToSheet();
-           console.log("Sync complete, fetching again...");
-           const res2 = await apiCall('getLedger');
-           console.log("Got ledger data length after sync:", res2.data?.length);
-           setLedgerEntriesRaw(res2.data || []);
-        } else {
-           setLedgerEntriesRaw(res.data);
-        }
+        console.log("Fetching ledger data on the fly from PI and Lifting logs...");
+        const [piRes, liftRes, arcPiRes, arcLiftRes] = await Promise.all([
+          apiCall('getPIData'),
+          apiCall('getLiftingData'),
+          apiCall('getArchivePI'),
+          apiCall('getArchiveLifting')
+        ]);
+        
+        const piMap = new Map<string, any>();
+        [...(arcPiRes.data || []), ...(piRes.data || [])].forEach((p: any) => {
+          if (p.PI_NO) piMap.set(String(p.PI_NO).trim().toUpperCase(), p);
+        });
+        const allPis = Array.from(piMap.values());
+
+        const liftMap = new Map<string, any>();
+        [...(arcLiftRes.data || []), ...(liftRes.data || [])].forEach((l: any) => {
+          if (l.LIFTING_ID) liftMap.set(String(l.LIFTING_ID).trim().toUpperCase(), l);
+        });
+        const allLiftsLatest = Array.from(liftMap.values());
+
+        const parsedLifts = allLiftsLatest.map((item: any) => {
+          let history: any[] = [];
+          const fieldsToCheck = [item.NOTES, item.HISTORY, item.history, item.DELIVERY_HISTORY];
+          for (const field of fieldsToCheck) {
+            if (typeof field === 'string' && field.trim().startsWith('[')) {
+              try {
+                const parsed = JSON.parse(field);
+                if (Array.isArray(parsed)) {
+                  history = parsed;
+                  break;
+                }
+              } catch (e) {}
+            } else if (Array.isArray(field)) {
+              history = field;
+              break;
+            }
+          }
+          return { ...item, HISTORY: history };
+        });
+
+        const partyEntries: any[] = [];
+        const stockEntries: any[] = [];
+
+        allPis.forEach(pi => {
+          const piKey = (pi.PI_NO || '').trim();
+          if (!piKey) return;
+
+          const lifts = parsedLifts.filter(l => (l.PI_NO || '').trim().toUpperCase() === piKey.toUpperCase());
+          const isGeneral = (name: string) => String(name || '').trim().toUpperCase() === 'GENERAL ACCOUNT';
+
+          if (lifts.length > 0) {
+            lifts.forEach(lift => {
+              if (isGeneral(lift.ACCOUNT)) return;
+              partyEntries.push({
+                date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
+                type: 'Initial Allocation',
+                account: lift.ACCOUNT,
+                piNo: piKey,
+                qtyIn: Number(lift.TARGET_KG) || 0,
+                qtyOut: 0,
+                isInitial: true,
+                isStock: false,
+                remarks: `Target set for ${pi.PRODUCT_QUALITY}`
+              });
+            });
+          } else if (!isGeneral(pi.CUSTOMER_NAME)) {
+            partyEntries.push({
+              date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
+              type: 'Initial Allocation',
+              account: pi.CUSTOMER_NAME,
+              piNo: piKey,
+              qtyIn: Number(pi.QUANTITY_KG) || 0,
+              qtyOut: 0,
+              isInitial: true,
+              isStock: false,
+              remarks: `Target set for ${pi.PRODUCT_QUALITY}`
+            });
+          }
+
+          stockEntries.push({
+            date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
+            type: 'Stock Prepared',
+            account: pi.CUSTOMER_NAME || 'Factory / Master',
+            piNo: piKey,
+            qtyIn: Number(pi.QUANTITY_KG) || 0,
+            qtyOut: 0,
+            isStock: true,
+            remarks: `PI Created: ${pi.PRODUCT_QUALITY || ''}`
+          });
+        });
+
+        parsedLifts.forEach(lift => {
+          const piKey = (lift.PI_NO || '').trim();
+          const history = Array.isArray(lift.HISTORY) ? lift.HISTORY : [];
+          let mappedDeliveriesParties = history.map(h => ({
+            date: h.deliveryDate || h.timestamp,
+            type: 'Delivery',
+            account: lift.ACCOUNT,
+            piNo: piKey,
+            qtyIn: 0,
+            qtyOut: Number(h.quantityKg) || 0,
+            isStock: false,
+            remarks: `Dispatch`
+          }));
+          let mappedDeliveriesStock = history.map(h => ({
+              date: h.deliveryDate || h.timestamp,
+              type: 'Delivery',
+              account: lift.ACCOUNT,
+              piNo: piKey,
+              qtyIn: 0,
+              qtyOut: Number(h.quantityKg) || 0,
+              isStock: true,
+              remarks: `Dispatch`
+            }));
+
+          if (mappedDeliveriesParties.length === 0 && Number(lift.DELIVERED_KG) > 0) {
+            mappedDeliveriesParties.push({
+              date: lift.LAST_DELIVERY_DATE || lift.DATE || new Date().toISOString(),
+              type: 'Legacy Delivery',
+              account: lift.ACCOUNT,
+              piNo: piKey,
+              qtyIn: 0,
+              qtyOut: Number(lift.DELIVERED_KG) || 0,
+              isStock: false,
+              remarks: `Legacy`
+            });
+            mappedDeliveriesStock.push({
+              date: lift.LAST_DELIVERY_DATE || lift.DATE || new Date().toISOString(),
+              type: 'Legacy Delivery',
+              account: lift.ACCOUNT,
+              piNo: piKey,
+              qtyIn: 0,
+              qtyOut: Number(lift.DELIVERED_KG) || 0,
+              isStock: true,
+              remarks: `Legacy`
+            });
+          }
+
+          partyEntries.push(...mappedDeliveriesParties);
+          stockEntries.push(...mappedDeliveriesStock);
+        });
+
+        const entries = [...partyEntries, ...stockEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        const rows = entries.map((e, index) => ({
+          ID: index.toString(),
+          DATE: new Date(e.date).toLocaleString(),
+          ACCOUNT_PI: `${e.isStock ? 'STOCK_' : 'PARTY_'}${e.isStock ? e.piNo : e.account}`,
+          TYPE: e.type || '',
+          INWARD_TARGET_KG: e.qtyIn || 0,
+          OUTWARD_DELIVERED_KG: e.qtyOut || 0,
+          BALANCE_KG: 0,
+          REMARKS: `${e.piNo}||${e.isInitial||false}` 
+        }));
+        
+        setLedgerEntriesRaw(rows);
       } catch (err) {
         console.error("fetchLedger failed:", err);
-        onNotify('Error', 'Failed to fetch ledger data', 'error');
+        onNotify('Error', 'Failed to calculate ledger data', 'error');
       } finally {
         setIsLoading(false);
       }
@@ -299,7 +442,6 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                         ) : (
                           <>
                             <th className="p-4">ENTRY DATE</th>
-                            <th className="p-4">PARTICULARS / REF</th>
                             <th className="p-4 text-center">INWARD / TARGET</th>
                             <th className="p-4 text-center">OUTWARD (DELIVERED)</th>
                             <th className="p-4 text-center">BALANCE</th>
@@ -342,31 +484,20 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                             ) : (
                               <>
                                 <td className="p-4">
-                                   <div className="flex flex-col gap-1">
-                                     <div className="text-xs font-black text-slate-800 whitespace-nowrap">{new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}</div>
-                                     <div className="text-[10px] font-bold text-teal-700 whitespace-nowrap">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                                   </div>
-                                </td>
-                                <td className="p-4">
                                    {entry.isInitial ? (
-                                      <div className="flex flex-col gap-1 items-start">
-                                        <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Initial Allocation</span>
-                                        <span className="font-mono text-[10px] text-indigo-500 font-bold tracking-widest">{entry.piNo}</span>
-                                      </div>
+                                      <div className="text-xs font-black text-teal-800 tracking-wide">Initial Allocation</div>
                                    ) : (
-                                     <div className="flex flex-col gap-1 items-start">
-                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${entry.type?.includes('Delivery') ? 'text-teal-700' : 'text-slate-600'}`}>
-                                          {entry.type}
-                                        </span>
-                                        <span className="font-mono text-[10px] text-slate-500 font-bold tracking-widest">{entry.piNo}</span>
+                                     <div className="flex flex-wrap items-center gap-3">
+                                       <div className="text-xs font-black text-slate-800 whitespace-nowrap">{new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}</div>
+                                       <div className="text-[10px] font-black text-teal-700 whitespace-nowrap">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                      </div>
                                    )}
                                 </td>
                                 <td className="p-4 text-center">
-                                  {entry.isInitial ? <span className="text-indigo-600 font-bold text-xs">{entry.qty.toLocaleString()} kg</span> : <span className="text-teal-600 font-bold text-xs">-</span>}
+                                  {entry.isInitial ? <span className="text-indigo-600 font-bold text-xs">{entry.qtyIn > 0 ? entry.qtyIn.toLocaleString() : entry.qtyOut.toLocaleString()} kg</span> : <span className="text-teal-600 font-bold text-xs">-</span>}
                                 </td>
                                 <td className="p-4 text-center">
-                                  {!entry.isInitial && entry.qty > 0 ? <span className="text-teal-600 font-bold text-xs">{entry.qty.toLocaleString()} kg</span> : <span className="text-teal-600 font-bold text-xs">-</span>}
+                                  {!entry.isInitial && entry.qtyOut > 0 ? <span className="text-teal-600 font-bold text-xs">{entry.qtyOut.toLocaleString()} kg</span> : <span className="text-teal-600 font-bold text-xs">-</span>}
                                 </td>
                                 <td className="p-4 text-center">
                                    <span className="text-slate-900 font-bold text-xs">{Math.abs(entry.balanceQty).toLocaleString()} kg</span>
