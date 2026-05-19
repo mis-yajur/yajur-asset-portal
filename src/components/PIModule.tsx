@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { syncLedgerToSheet } from '../lib/ledgerSync';
 import { 
   FileText, 
   Search, 
@@ -117,6 +118,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       if (res.success) {
         onNotify('Archived', `PI ${piNo} moved to Resolution Matrix`, 'success');
         onLog('Archive PI', `PI: ${piNo}`);
+        await syncLedgerToSheet();
         await loadData();
       } else {
         onNotify('Error', res.error || 'Archiving failed', 'error');
@@ -137,6 +139,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       if (res.success) {
         onNotify('Purged', 'PI record removed correctly', 'success');
         onLog('Delete PI', `ID: ${id}`);
+        await syncLedgerToSheet();
         await loadData();
       } else {
         onNotify('Error', res.error || 'Purge failed', 'error');
@@ -214,6 +217,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
         onLog(isEdit ? 'Update PI' : 'Add PI', `ID: ${piNo}, Qty: ${totalQty}kg`);
         setIsModalOpen(false);
         setCurrentEntry(null);
+        await syncLedgerToSheet();
         await loadData();
       } else {
         console.error('[PIModule] Sync failed:', res.error);

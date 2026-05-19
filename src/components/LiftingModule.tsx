@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { syncLedgerToSheet } from '../lib/ledgerSync';
 import { 
   Truck, 
   Search, 
@@ -230,6 +231,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
         onLog('Add Delivery', `Lifting ID: ${selectedLifting.LIFTING_ID}, Qty: ${newDelivery.quantityKg}kg`);
         setIsAddDeliveryModalOpen(false);
         setNewDelivery({ quantityKg: 0, date: new Date().toISOString().split('T')[0] });
+        await syncLedgerToSheet();
         await loadData();
       } else {
         onNotify('Error', res.error || 'Delivery record failed', 'error');
@@ -250,6 +252,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
       if (res.success) {
         onNotify('Archived', `PI ${piNo} moved to Resolution Matrix`, 'success');
         onLog('Archive PI', `PI: ${piNo}`);
+        await syncLedgerToSheet();
         await loadData();
       } else {
         onNotify('Error', res.error || 'Archiving failed', 'error');
@@ -270,6 +273,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
       if (res.success) {
         onNotify('Archived', `Lifting Entry ${liftingId} archived`, 'success');
         onLog('Archive Entry', `ID: ${liftingId}, PI: ${piNo}`);
+        await syncLedgerToSheet();
         await loadData();
       } else {
         onNotify('Error', res.error || 'Archiving failed', 'error');
@@ -290,6 +294,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
       if (res.success) {
         onNotify('Deleted', 'Record removed from system', 'success');
         onLog('Delete Lifting', `ID: ${id}`);
+        await syncLedgerToSheet();
         await loadData();
       } else {
         onNotify('Error', res.error || 'Delete failed', 'error');
@@ -337,6 +342,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
         onLog(isEdit ? 'Update Lifting' : 'Add Lifting', `PI: ${currentEntry.PI_NO}, Target: ${targetKg}kg`);
         setIsModalOpen(false);
         setCurrentEntry(null);
+        await syncLedgerToSheet();
         await loadData();
       } else {
         onNotify('Error', res.error || 'Save failed', 'error');

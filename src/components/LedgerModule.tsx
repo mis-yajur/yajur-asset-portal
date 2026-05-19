@@ -12,293 +12,82 @@ interface LedgerModuleProps {
 export function LedgerModule({ onNotify }: LedgerModuleProps) {
   const [activeTab, setActiveTab] = useState<'party' | 'stock'>('party');
   const [search, setSearch] = useState('');
-  const [piData, setPiData] = useState<PIData[]>([]);
-  const [liftingData, setLiftingData] = useState<LiftingData[]>([]);
+  const [ledgerEntriesRaw, setLedgerEntriesRaw] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  React.useEffect(() => {
-    async function fetchData() {
+  const fetchLedger = async () => {
       setIsLoading(true);
       try {
-        const [piRes, liftRes, arcPiRes, arcLiftRes] = await Promise.all([
-          apiCall('getPIData'),
-          apiCall('getLiftingData'),
-          apiCall('getArchivePI'),
-          apiCall('getArchiveLifting')
-        ]);
-        
-        // Deduplicate PIs by PI_NO (prefer active over archive if both exist)
-        const piMap = new Map<string, any>();
-        [...(arcPiRes.data || []), ...(piRes.data || [])].forEach((p: any) => {
-          if (p.PI_NO) piMap.set(String(p.PI_NO).trim().toUpperCase(), p);
-        });
-        const allPis = Array.from(piMap.values());
-        setPiData(allPis);
-        
-        // Deduplicate Liftings by LIFTING_ID
-        const liftMap = new Map<string, any>();
-        [...(arcLiftRes.data || []), ...(liftRes.data || [])].forEach((l: any) => {
-          if (l.LIFTING_ID) liftMap.set(String(l.LIFTING_ID).trim().toUpperCase(), l);
-        });
-        const allLifts = Array.from(liftMap.values());
-        
-        const parsedData = allLifts.map((item: any) => {
-          let historyStr = item.HISTORY || item.history || item.History || item.DELIVERY_HISTORY || item.NOTES;
-          let history = historyStr;
-          if (typeof history === 'string') {
-            try { history = JSON.parse(historyStr); } catch (e) { history = []; }
-          }
-          return { ...item, HISTORY: Array.isArray(history) ? history : [] };
-        });
-        setLiftingData(parsedData);
+        const res = await apiCall('getLedger');
+        setLedgerEntriesRaw(res.data || []);
       } catch (err) {
         onNotify('Error', 'Failed to fetch ledger data', 'error');
       } finally {
         setIsLoading(false);
       }
-    }
-    fetchData();
+  };
+
+  React.useEffect(() => {
+    fetchLedger();
   }, [onNotify]);
 
   // Calculate Ledger Rows
-  const ledgerEntries = useMemo(() => {
-    const stockEntries: any[] = [];
-    const partyEntries: any[] = [];
-
-    const piMap = new Map<string, any>();
-    piData.forEach(pi => {
-      const piKey = (pi.PI_NO || '').trim();
-      if (!piKey) return;
-      piMap.set(piKey, pi);
-
-      const rate = Number(pi.RATE_PER_UNIT) || 0;
-      const lifts = liftingData.filter(l => (l.PI_NO || '').trim().toUpperCase() === piKey.toUpperCase());
-
-      // Skip General Account / Internal accounts as requested
-      const isGeneral = (name: string) => String(name || '').trim().toUpperCase() === 'GENERAL ACCOUNT';
-
-      if (lifts.length > 0) {
-        lifts.forEach(lift => {
-          if (isGeneral(lift.ACCOUNT)) return;
-          const targetQty = Number(lift.TARGET_KG) || 0;
-
-          // Party Ledger Entry (Split by account)
-          partyEntries.push({
-            date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
-            type: 'PI Target Lifting',
-            account: lift.ACCOUNT,
-            piNo: piKey,
-            qty: targetQty,
-            rate: rate,
-            debitAmt: 0,
-            creditAmt: 0,
-            isInitial: true,
-            remarks: `Target set for ${pi.PRODUCT_QUALITY}`
-          });
-        });
-      } else if (!isGeneral(pi.CUSTOMER_NAME)) {
-        const targetQty = Number(pi.QUANTITY_KG) || 0;
-        partyEntries.push({
-          date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
-          type: 'PI Target Lifting',
-          account: pi.CUSTOMER_NAME,
-          piNo: piKey,
-          qty: targetQty,
-          rate: rate,
-          debitAmt: 0,
-          creditAmt: 0,
-          isInitial: true,
-          remarks: `Target set for ${pi.PRODUCT_QUALITY}`
-        });
-      }
-
-      // Stock Ledger Entry: Inward (Production) - Use PI total as base
-      const totalPiQty = Number(pi.QUANTITY_KG) || 0;
-      stockEntries.push({
-        date: pi.CREATED_AT || pi.PI_DATE || pi.DATE || new Date().toISOString(),
-        type: 'Stock Prepared',
-        account: pi.CUSTOMER_NAME || 'Factory / Master',
-        piNo: piKey,
-        qtyIn: totalPiQty,
-        qtyOut: 0,
-        rate: rate,
-        amount: 0,
-        remarks: `PI Created: ${pi.PRODUCT_QUALITY || ''}`
-      });
-    });
-
-    liftingData.forEach(lift => {
-      const piKey = (lift.PI_NO || '').trim();
-      const piInfo = piMap.get(piKey) || {};
-      const rate = Number(piInfo.RATE_PER_UNIT || lift.RATE) || 0;
-
-      const history = Array.isArray(lift.HISTORY) ? lift.HISTORY : [];
-      let mappedDeliveries = history.map(h => ({
-        date: h.deliveryDate || h.timestamp,
-        type: 'Delivery (Sales)',
-        account: lift.ACCOUNT,
-        piNo: piKey,
-        qtyOut: Number(h.quantityKg) || 0,
-        rate: rate,
-        amount: (Number(h.quantityKg) || 0) * rate,
-        remarks: `Invoice / Dispatch`
-      }));
-
-      // If there are legacy lifted amounts not in history
-      if (mappedDeliveries.length === 0 && Number(lift.DELIVERED_KG) > 0) {
-        mappedDeliveries.push({
-          date: lift.LAST_DELIVERY_DATE || lift.DATE || new Date().toISOString(),
-          type: 'Legacy Delivery',
-          account: lift.ACCOUNT,
-          piNo: piKey,
-          qtyOut: Number(lift.DELIVERED_KG) || 0,
-          rate: rate,
-          amount: (Number(lift.DELIVERED_KG) || 0) * rate,
-          remarks: `Legacy Delivery Record`
-        });
-      }
-
-      mappedDeliveries.forEach(d => {
-         // Stock Ledger Entry: Outward (Sales)
-         stockEntries.push({
-           date: d.date,
-           type: d.type,
-           account: d.account,
-           piNo: d.piNo,
-           qtyIn: 0,
-           qtyOut: d.qtyOut,
-           rate: d.rate,
-           amount: d.amount,
-           remarks: `Sold to ${d.account}`
-         });
-
-         // Party Ledger Entry: Sales (Debit for Party)
-         partyEntries.push({
-           date: d.date,
-           type: d.type,
-           account: d.account,
-           piNo: d.piNo,
-           qty: d.qtyOut,
-           rate: d.rate,
-           debitAmt: d.amount,
-           creditAmt: 0,
-           remarks: `Delivery against PI ${d.piNo}`
-         });
-      });
-    });
-
-    stockEntries.sort((a, b) => {
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
-      
-      // Sort by date (ignoring time for consistent grouping)
-      dateA.setHours(0,0,0,0);
-      dateB.setHours(0,0,0,0);
-      
-      const dateDiff = dateA.getTime() - dateB.getTime();
-      if (dateDiff !== 0) return dateDiff;
-      
-      // On same day, Target (Inward) comes first
-      if (a.type?.toLowerCase().includes('target') || a.type?.toLowerCase().includes('prepared')) return -1;
-      if (b.type?.toLowerCase().includes('target') || b.type?.toLowerCase().includes('prepared')) return 1;
-      
-      return 0;
-    });
-    partyEntries.sort((a, b) => {
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
-      
-      dateA.setHours(0,0,0,0);
-      dateB.setHours(0,0,0,0);
-      
-      const dateDiff = dateA.getTime() - dateB.getTime();
-      if (dateDiff !== 0) return dateDiff;
-      
-      if (a.isInitial) return -1;
-      if (b.isInitial) return 1;
-      
-      return 0;
-    });
-    
-    return { stockEntries, partyEntries };
-  }, [piData, liftingData]);
-
-  // Filter based on Tab
   const filteredLedger = useMemo(() => {
-    const { stockEntries, partyEntries } = ledgerEntries;
+    // We already have generic rows in ledger sheet. Filter by Stock or Party based on ACCOUNT_PI prefixes
+    let filtered = ledgerEntriesRaw.filter(e => {
+        if (!e.ACCOUNT_PI) return false;
+        if (activeTab === 'stock' && String(e.ACCOUNT_PI).startsWith('STOCK_')) return true;
+        if (activeTab === 'party' && String(e.ACCOUNT_PI).startsWith('PARTY_')) return true;
+        return false;
+    });
 
-    if (activeTab === 'party') {
-      let list = partyEntries;
-      if (search) {
-        list = list.filter(e => 
-          (e.account && e.account.toLowerCase().includes(search.toLowerCase())) ||
-          (e.piNo && e.piNo.toLowerCase().includes(search.toLowerCase()))
+    if (search) {
+        filtered = filtered.filter(e => 
+           (e.REMARKS && e.REMARKS.toLowerCase().includes(search.toLowerCase())) ||
+           (e.ACCOUNT_PI && e.ACCOUNT_PI.toLowerCase().includes(search.toLowerCase()))
         );
-      }
-      
-      const byCustomer: Record<string, any[]> = {};
-      list.forEach(e => {
-        if (!byCustomer[e.account]) byCustomer[e.account] = [];
-        byCustomer[e.account].push(e);
-      });
-      
-      const res: any[] = [];
-      Object.keys(byCustomer).sort().forEach(acc => {
-        let runningPriceBal = 0;
-        let runningQtyBal = 0;
-        
-        byCustomer[acc].forEach(entry => {
-          if (entry.isInitial) {
-             runningPriceBal += (entry.qty * entry.rate);
-             runningQtyBal += entry.qty;
-          } else {
-             // Reductions for deliveries
-             runningPriceBal -= entry.debitAmt;
-             runningQtyBal -= entry.qty;
-          }
-          res.push({ 
-            ...entry, 
-            balanceAmt: runningPriceBal, 
-            balanceQty: runningQtyBal,
-            group: acc 
-          });
-        });
-        
-        // Push a summary row for party
-        res.push({
-           isSummary: true,
-           group: acc,
-           balanceAmt: runningPriceBal,
-           balanceQty: runningQtyBal
-        });
-      });
-      return res;
-    } else {
-      let list = stockEntries;
-      if (search) {
-        list = list.filter(e => 
-          (e.account && e.account.toLowerCase().includes(search.toLowerCase())) ||
-          (e.piNo && e.piNo.toLowerCase().includes(search.toLowerCase()))
-        );
-      }
-      
-      const byPI: Record<string, any[]> = {};
-      list.forEach(e => {
-        if (!byPI[e.piNo]) byPI[e.piNo] = [];
-        byPI[e.piNo].push(e);
-      });
-      
-      const res: any[] = [];
-      Object.keys(byPI).sort().forEach(pi => {
-        let balQty = 0;
-        byPI[pi].forEach(entry => {
-          balQty += entry.qtyIn - entry.qtyOut;
-          res.push({ ...entry, balanceQty: balQty, group: pi });
-        });
-      });
-      return res;
     }
-  }, [ledgerEntries, activeTab, search]);
+
+    let grouped: any = {};
+    filtered.forEach(entry => {
+       const groupKey = String(entry.ACCOUNT_PI).replace('STOCK_', '').replace('PARTY_', '');
+       if (!grouped[groupKey]) grouped[groupKey] = [];
+       
+       const isInit = String(entry.REMARKS || '').includes('||true');
+       const piInfo = String(entry.REMARKS || '').split('||')[0];
+       
+       grouped[groupKey].push({
+           date: entry.DATE,
+           type: entry.TYPE,
+           piNo: activeTab === 'stock' ? groupKey : piInfo,
+           account: activeTab === 'party' ? groupKey : '',
+           qty: Number(entry.INWARD_TARGET_KG) || Number(entry.OUTWARD_DELIVERED_KG) || 0,
+           qtyIn: Number(entry.INWARD_TARGET_KG) || 0,
+           qtyOut: Number(entry.OUTWARD_DELIVERED_KG) || 0,
+           isInitial: isInit,
+           group: groupKey,
+           id: entry.ID
+       });
+    });
+
+    const res: any[] = [];
+    Object.keys(grouped).sort().forEach(group => {
+       let balQty = 0;
+       grouped[group].sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach((entry: any) => {
+         if (activeTab === 'stock') {
+            balQty += entry.qtyIn - entry.qtyOut;
+            res.push({ ...entry, balanceQty: balQty });
+         } else {
+            balQty += (entry.qtyIn > 0 ? entry.qtyIn : 0) - (entry.qtyOut > 0 ? entry.qtyOut : 0);
+            res.push({ ...entry, balanceQty: balQty });
+         }
+       });
+       if (activeTab === 'party') {
+           res.push({ isSummary: true, group: group, balanceQty: balQty });
+       }
+    });
+    return res;
+  }, [ledgerEntriesRaw, activeTab, search]);
 
   const syncToSheet = async () => {
     try {
