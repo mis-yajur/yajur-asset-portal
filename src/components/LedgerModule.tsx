@@ -513,9 +513,11 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                           </>
                         ) : (
                           <>
-                            <th className="p-4 text-center">Inward / Target</th>
-                            <th className="p-4 text-center">Outward (Delivered)</th>
-                            <th className="p-4 text-center">Balance</th>
+                            <th className="p-4 text-right">Delivered Qty</th>
+                            <th className="p-4 text-right">Rate</th>
+                            <th className="p-4 bg-red-50/30 text-red-600 text-right">Delivered Amt</th>
+                            <th className="p-4 text-right text-primary-main">Price Balance</th>
+                            <th className="p-4 text-right text-indigo-600 font-black">Qty Balance</th>
                           </>
                         )}
                         
@@ -555,27 +557,22 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                               </>
                             ) : (
                               <>
-                                <td className="p-4 text-center">
-                                  {entry.isInitial ? (
-                                     <div className="flex flex-col items-center">
-                                        <span className="text-indigo-600 font-black text-sm">{entry.qty.toLocaleString()} kg</span>
-                                        <span className="text-indigo-600/70 font-bold text-[10px] mt-0.5 tracking-wider">₹{(entry.qty * entry.rate).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                                     </div>
-                                  ) : <span className="text-slate-300">-</span>}
+                                <td className="p-4 text-right font-bold">
+                                  {entry.qty.toLocaleString()}
                                 </td>
-                                <td className="p-4 text-center">
-                                  {!entry.isInitial ? (
-                                     <div className="flex flex-col items-center">
-                                        <span className="text-teal-600 font-black text-sm">{entry.qty.toLocaleString()} kg</span>
-                                        <span className="text-teal-600/70 font-bold text-[10px] mt-0.5 tracking-wider">₹{entry.debitAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                                     </div>
-                                  ) : <span className="text-slate-300">-</span>}
+                                <td className="p-4 text-right font-mono text-xs">
+                                  ₹{entry.rate}
                                 </td>
-                                <td className="p-4 text-center">
-                                   <div className="flex flex-col items-center">
-                                      <span className="text-slate-900 font-black text-sm">{Math.abs(entry.balanceQty).toLocaleString()} kg</span>
-                                      <span className="text-slate-500 font-bold text-[10px] mt-0.5 tracking-wider">₹{Math.abs(entry.balanceAmt).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                                   </div>
+                                <td className="p-4 text-right">
+                                  {entry.debitAmt > 0 ? <div className="text-red-500 font-bold">₹{entry.debitAmt.toLocaleString(undefined, {minimumFractionDigits: 2})}</div> : <span className="text-slate-400">₹0.00</span>}
+                                </td>
+                                <td className="p-4 text-right text-primary-main font-black">
+                                  ₹{Math.abs(entry.balanceAmt).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                                </td>
+                                <td className="p-4 text-right">
+                                  <span className="bg-indigo-600 text-white px-3 py-1 rounded-lg font-black text-xs uppercase tracking-tighter">
+                                    {Math.abs(entry.balanceQty).toLocaleString()} kg
+                                  </span>
                                 </td>
                               </>
                             )}
