@@ -1,9 +1,11 @@
-export type Page = 'dashboard' | 'lifting' | 'pi' | 'customers' | 'products' | 'reports' | 'settings' | 'audit-log' | 'ledger' | 'archive';
+export type Page = 'dashboard' | 'lifting' | 'pi' | 'customers' | 'products' | 'reports' | 'settings' | 'audit-log' | 'ledger' | 'archive' | 'users' | 'log-report';
 
 export interface User {
   username: string;
   name: string;
   role: string;
+  status?: string;
+  models?: string[];
 }
 
 export type FontStyle = 'sans' | 'serif' | 'mono' | 'display';

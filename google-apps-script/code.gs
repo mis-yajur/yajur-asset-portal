@@ -55,6 +55,11 @@ function doPost(e) {
       case 'archivePI': result = archivePI(params.PI_NO); break;
       case 'archiveLiftingEntry': result = archiveLiftingEntry(params.LIFTING_ID); break;
       
+      case 'getGenericData': result = getData(params.sheetName); break;
+      case 'addGenericRow': result = addRow(params.sheetName, params.data); break;
+      case 'updateGenericRow': result = updateRow(params.sheetName, params.keyField, params.data); break;
+      case 'deleteGenericRow': result = deleteRow(params.sheetName, params.keyField, params.keyValue); break;
+
       case 'addCustomer': result = addRow('customer_master', params); break;
       case 'bulkUploadCustomers': result = bulkUpload('customer_master', params.customers); break;
       case 'updateCustomer': result = updateRow('customer_master', 'PARTY_CODE', params); break;
@@ -91,7 +96,8 @@ function doPost(e) {
 function initializeSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetsConfig = {
-    'users': ["USERNAME", "PASSWORD", "ROLE", "NAME"],
+    'users': ["USERNAME", "PASSWORD", "ROLE", "NAME", "STATUS", "MODELS"],
+    'user_logs': ["TIMESTAMP", "USERNAME", "ACTION", "MODULE", "DETAILS"],
     'lifting_data': ["LIFTING_ID", "ACCOUNT", "CONTACT", "PI_NO", "TARGET_KG", "DELIVERED_KG", "REMAINING_KG", "COMPLETION", "FREQUENCY", "STATUS", "LAST_DELIVERY_DATE", "LAST_QTY", "HISTORY", "NOTES"],
     'pi_data': ["PI_NO", "INVOICE_DATE", "SELLER_NAME", "SELLER_GSTIN", "SELLER_CIN", "CERT_NO", "CUSTOMER_NAME", "CUSTOMER_ADDRESS", "CUSTOMER_GST_NO", "DELIVERY_NAME", "DELIVERY_ADDRESS", "DELIVERY_GST_NO", "HSN_CODE", "PRODUCT_QUALITY", "UNIT_COUNT", "QUANTITY_KG", "RATE_PER_UNIT", "ITEM_TOTAL", "NET_AMOUNT", "AUTHORIZED_SIGNATORY", "STATUS", "CREATED_AT", "ITEMS", "PAYMENT_TERMS", "NOTE", "TRANSPORT_MODE", "IGST_PERCENT", "PDF_URL", "PDF_DOWNLOAD_URL", "PDF_ID"],
     'customer_master': ["SL", "PARTY_CODE", "PARTY_NAME", "ADDRESS1", "ADDRESS2", "ADDRESS3", "STATE_CODE", "GSTIN", "PAN_NO", "MOBILE_NO", "EMAIL_ID", "BANK_CODE", "IFSC_BRANCH", "IFSC_CODE", "ACC_NO"],

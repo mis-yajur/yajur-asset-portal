@@ -52,6 +52,8 @@ import ProductsModule from './components/ProductsModule';
 import ReportsModule from './components/ReportsModule';
 import { LedgerModule } from './components/LedgerModule';
 import ArchiveModule from './components/ArchiveModule';
+import UsersModule from './components/UsersModule';
+import LogReportModule from './components/LogReportModule';
 
 import { THEME_PRESETS } from './constants';
 
@@ -198,6 +200,18 @@ export default function App() {
       timestamp: new Date()
     };
     setAuditLogs(prev => [entry, ...prev]);
+
+    // Save to Google Sheets
+    apiCall('addGenericRow', {
+      sheetName: 'user_logs',
+      data: {
+        TIMESTAMP: new Date().toISOString(),
+        USERNAME: user.username,
+        ACTION: action,
+        MODULE: currentPage,
+        DETAILS: details
+      }
+    }).catch(console.error);
   };
 
   if (!isLoggedIn) {
@@ -307,6 +321,10 @@ export default function App() {
               <LedgerModule onNotify={addNotification} />
             ) : currentPage === 'archive' ? (
               <ArchiveModule onNotify={addNotification} />
+            ) : currentPage === 'users' ? (
+              <UsersModule onNotify={addNotification} onLog={logAction} user={user} />
+            ) : currentPage === 'log-report' ? (
+              <LogReportModule />
             ) : currentPage === 'settings' ? (
               user?.role === 'admin' ? (
                 <SettingsPage theme={theme} onThemeChange={setTheme} />
@@ -369,16 +387,29 @@ function Header({
   const [showThemePicker, setShowThemePicker] = useState(false);
   const isAdmin = user?.role === 'admin';
 
+  const hasAccess = (pageId: string) => {
+    if (isAdmin) return true;
+    if (!user?.models) return true; // Default fallback to all if models array is not set on older accounts
+    try {
+        const userModelsStr = Array.isArray(user.models) ? user.models : [];
+        const models = typeof user.models === 'string' ? JSON.parse(user.models) : userModelsStr;
+        return models.includes(pageId);
+    } catch(e) {
+        return true;
+    }
+  };
+
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-    { id: 'lifting', label: 'Lifting', icon: <Truck size={18} /> },
-    { id: 'archive', label: 'Archive', icon: <History size={18} /> },
-    { id: 'ledger', label: 'Ledger', icon: <FileText size={18} /> },
-    { id: 'pi', label: 'Proforma', icon: <FileText size={18} /> },
-    { id: 'customers', label: 'Customers', icon: <Users size={18} /> },
-    { id: 'products', label: 'Products', icon: <Box size={18} /> },
-    { id: 'reports', label: 'Analytics', icon: <BarChart3 size={18} /> },
-    { id: 'audit-log', label: 'Audit', icon: <History size={18} />, hidden: !isAdmin },
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, hidden: !hasAccess('dashboard') },
+    { id: 'lifting', label: 'Lifting', icon: <Truck size={18} />, hidden: !hasAccess('lifting') },
+    { id: 'archive', label: 'Archive', icon: <History size={18} />, hidden: !hasAccess('archive') },
+    { id: 'ledger', label: 'Ledger', icon: <FileText size={18} />, hidden: !hasAccess('ledger') },
+    { id: 'pi', label: 'Proforma', icon: <FileText size={18} />, hidden: !hasAccess('pi') },
+    { id: 'customers', label: 'Customers', icon: <Users size={18} />, hidden: !hasAccess('customers') },
+    { id: 'products', label: 'Products', icon: <Box size={18} />, hidden: !hasAccess('products') },
+    { id: 'reports', label: 'Analytics', icon: <BarChart3 size={18} />, hidden: !hasAccess('reports') },
+    { id: 'users', label: 'Users', icon: <Users size={18} />, hidden: !isAdmin && !hasAccess('users') },
+    { id: 'log-report', label: 'Log Report', icon: <History size={18} />, hidden: !isAdmin && !hasAccess('log-report') },
     { id: 'settings', label: 'Settings', icon: <Settings size={18} />, hidden: !isAdmin },
   ].filter(i => !i.hidden) as { id: Page; label: string; icon: React.ReactNode }[];
 
@@ -1798,8 +1829,14 @@ function LoginPage({ onLogin }: { onLogin: (u: User) => void }) {
     setError('');
     try {
       const res = await apiCall('login', { username, password });
-      if (res.success) {
-        onLogin(res.data);
+      if (res.success && res.data) {
+        onLogin({
+          username: res.data.USERNAME || res.data.username,
+          name: res.data.NAME || res.data.name,
+          role: typeof res.data.ROLE === 'string' ? res.data.ROLE.toLowerCase() : res.data.role?.toLowerCase() || 'user',
+          status: res.data.STATUS || res.data.status,
+          models: res.data.MODELS || res.data.models
+        });
       } else {
         setError(res.error || 'Identity verification failed');
       }
