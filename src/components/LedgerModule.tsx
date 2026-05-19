@@ -311,10 +311,7 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
           TYPE: e.type || '',
           INWARD_TARGET_KG: activeTab === 'stock' ? (e.qtyIn || 0) : (e.isInitial ? e.qty : 0),
           OUTWARD_DELIVERED_KG: activeTab === 'stock' ? (e.qtyOut || 0) : (!e.isInitial ? e.qty : 0),
-          RATE: e.rate || 0,
-          VALUE_AMOUNT: activeTab === 'stock' ? e.amount : (e.isInitial ? (e.qty * e.rate) : e.debitAmt),
           BALANCE_KG: e.balanceQty || 0,
-          BALANCE_AMOUNT: e.balanceAmt || 0,
           REMARKS: e.remarks || ''
         }));
 
@@ -546,19 +543,20 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                             ) : (
                               <>
                                 <td className="p-4">
-                                   {entry.isInitial ? (
-                                      <div className="text-sm font-black text-green-700 dark:text-green-600">Initial Allocation</div>
-                                   ) : (
-                                      <div className="flex items-center gap-2">
-                                        <div className="text-xs font-black text-slate-800">{new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}</div>
-                                        <div className="text-[10px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded uppercase">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                                      </div>
-                                   )}
+                                   <div className="flex flex-wrap items-center gap-2">
+                                     <div className="text-[11px] font-black text-slate-800 whitespace-nowrap">{new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}</div>
+                                     <div className="text-[10px] font-bold text-teal-700 whitespace-nowrap">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                   </div>
                                 </td>
                                 <td className="p-4">
-                                   {!entry.isInitial && (
+                                   {entry.isInitial ? (
+                                      <div className="flex flex-col gap-1 items-start">
+                                        <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Initial Allocation</span>
+                                        <span className="font-mono text-[10px] text-indigo-500 font-bold tracking-widest">{entry.piNo}</span>
+                                      </div>
+                                   ) : (
                                      <div className="flex flex-col gap-1 items-start">
-                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'text-teal-700' : 'text-indigo-700'}`}>
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'text-teal-700' : 'text-slate-600'}`}>
                                           {entry.type}
                                         </span>
                                         <span className="font-mono text-[10px] text-slate-500 font-bold tracking-widest">{entry.piNo}</span>
