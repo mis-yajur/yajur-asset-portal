@@ -338,18 +338,15 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     let tableData = [];
     let head = [];
     if (activeTab === 'party') {
-      head = [['Account', 'Date', 'Type', 'PI Ref', 'Inward Target (Kg)', 'Target Value (₹)', 'Outward Delivered (Kg)', 'Delivered Value (₹)', 'Balance (Kg)', 'Balance (₹)']];
+      head = [['Account', 'Date', 'Type', 'PI Ref', 'Inward Target (Kg)', 'Outward Delivered (Kg)', 'Balance (Kg)']];
       tableData = filteredLedger.filter(e => !e.isSummary).map(e => [
         e.group,
         new Date(e.date).toLocaleDateString(),
         e.type,
         e.piNo,
         e.isInitial ? e.qty + ' kg' : '-',
-        e.isInitial ? '₹' + (e.qty * e.rate).toFixed(2) : '-',
         !e.isInitial ? e.qty + ' kg' : '-',
-        !e.isInitial ? '₹' + e.debitAmt?.toFixed(2) : '-',
-        e.balanceQty + ' kg',
-        '₹' + Math.abs(e.balanceAmt)?.toFixed(2)
+        e.balanceQty + ' kg'
       ]);
     } else {
       head = [['PI No', 'Date', 'Type', 'Account', 'Inward (Kg)', 'Outward (Kg)', 'Balance (Kg)']];
@@ -381,9 +378,9 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     let headers = [];
     let rows = [];
     if (activeTab === 'party') {
-      headers = ['Account', 'Date', 'Type', 'PI No', 'Inward Target (Kg)', 'Target Value', 'Outward Delivered (Kg)', 'Delivered Value', 'Balance (Kg)', 'Balance Value', 'Remarks'];
+      headers = ['Account', 'Date', 'Type', 'PI No', 'Inward Target (Kg)', 'Outward Delivered (Kg)', 'Balance (Kg)', 'Remarks'];
       rows = filteredLedger.filter(e => !e.isSummary).map(e => [
-        `"${e.group}"`, `"${new Date(e.date).toLocaleDateString()}"`, `"${e.type}"`, `"${e.piNo}"`, e.isInitial ? e.qty : 0, e.isInitial ? e.qty * e.rate : 0, !e.isInitial ? e.qty : 0, !e.isInitial ? e.debitAmt : 0, e.balanceQty, Math.abs(e.balanceAmt), `"${e.remarks}"`
+        `"${e.group}"`, `"${new Date(e.date).toLocaleDateString()}"`, `"${e.type}"`, `"${e.piNo}"`, e.isInitial ? e.qty : 0, !e.isInitial ? e.qty : 0, e.balanceQty, `"${e.remarks}"`
       ]);
     } else {
       headers = ['PI No', 'Date', 'Type', 'Account', 'Qty IN (Stock)', 'Qty OUT (Delivered)', 'Balance', 'Remarks'];
@@ -491,17 +488,10 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                       <div className="w-2 h-2 rounded-full bg-accent mr-3"></div>
                       {groupKey}
                     </h3>
-                    {activeTab === 'party' && (
-                       <div className="px-3 py-1 bg-white border border-border-main rounded text-xs font-bold text-text-dim uppercase">
-                          Current Outstanding: <span className="text-red-500 font-black ml-1">
-                             ₹{Math.abs(items.find(i => i.isSummary)?.balanceAmt || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
-                          </span>
-                       </div>
-                    )}
                   </div>
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-white border-b border-border-main text-[10px] uppercase text-green-800 tracking-widest font-extrabold">
+                      <tr className="bg-green-50/30 border-b border-green-100 text-[10px] uppercase text-green-800 tracking-widest font-extrabold">
                         {activeTab === 'stock' ? (
                           <>
                             <th className="p-4">Entry Date</th>
@@ -512,14 +502,11 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                           </>
                         ) : (
                           <>
-                            <th className="p-4">Date</th>
-                            <th className="p-4">Particulars / Type</th>
-                            <th className="p-4">Reference</th>
-                            <th className="p-4 text-center">Delivered Qty</th>
-                            <th className="p-4 text-center">Rate</th>
-                            <th className="p-4 text-center text-red-600">Delivered Amt</th>
-                            <th className="p-4 text-center bg-green-50/50">Price Balance</th>
-                            <th className="p-4 text-center text-indigo-700">Qty Balance</th>
+                            <th className="p-4">Entry Date</th>
+                            <th className="p-4">Particulars / Ref</th>
+                            <th className="p-4 text-center">Inward / Target</th>
+                            <th className="p-4 text-center">Outward (Delivered)</th>
+                            <th className="p-4 text-center">Balance</th>
                           </>
                         )}
                         
@@ -533,12 +520,12 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                             {activeTab === 'stock' ? (
                               <>
                                 <td className="p-4">
-                                   <div className="text-xs font-black text-slate-800">{new Date(entry.date).toLocaleDateString()}</div>
-                                   <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                   <div className="text-xs font-black text-slate-800">{new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}</div>
+                                   <div className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                 </td>
                                 <td className="p-4">
-                                   <div className="flex flex-col gap-1.5 items-start">
-                                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'bg-teal-50 text-teal-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                                   <div className="flex flex-col gap-1 items-start">
+                                      <span className={`text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'text-teal-700' : 'text-indigo-700'}`}>
                                         {entry.type}
                                       </span>
                                       <span className="font-mono text-[10px] text-slate-500 font-bold">
@@ -547,43 +534,45 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                                    </div>
                                 </td>
                                 <td className="p-4 text-center">
-                                  {entry.qtyIn > 0 ? <span className="text-indigo-600 font-black">{entry.qtyIn.toLocaleString()} kg</span> : <span className="text-slate-300">-</span>}
+                                  {entry.qtyIn > 0 ? <span className="text-indigo-600 font-black text-sm">{entry.qtyIn.toLocaleString()} kg</span> : <span className="text-slate-300">-</span>}
                                 </td>
                                 <td className="p-4 text-center">
-                                  {entry.qtyOut > 0 ? <span className="text-teal-600 font-black">{entry.qtyOut.toLocaleString()} kg</span> : <span className="text-slate-300">-</span>}
+                                  {entry.qtyOut > 0 ? <span className="text-teal-600 font-black text-sm">{entry.qtyOut.toLocaleString()} kg</span> : <span className="text-slate-300">-</span>}
                                 </td>
                                 <td className="p-4 text-center">
-                                  <span className="text-slate-900 font-black">{entry.balanceQty.toLocaleString()} kg</span>
+                                  <span className="text-slate-900 font-black text-sm">{entry.balanceQty.toLocaleString()} kg</span>
                                 </td>
                               </>
                             ) : (
                               <>
                                 <td className="p-4">
-                                   <div className="text-xs font-black text-slate-800">{new Date(entry.date).toLocaleDateString()}</div>
-                                   <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                   {entry.isInitial ? (
+                                      <div className="text-sm font-black text-green-700 dark:text-green-600">Initial Allocation</div>
+                                   ) : (
+                                      <div className="flex items-center gap-2">
+                                        <div className="text-xs font-black text-slate-800">{new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}</div>
+                                        <div className="text-[10px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded uppercase">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                      </div>
+                                   )}
                                 </td>
                                 <td className="p-4">
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'bg-red-50 text-red-600' : 'bg-indigo-50 text-indigo-700'}`}>
-                                    {entry.type}
-                                  </span>
-                                </td>
-                                <td className="p-4">
-                                  <span className="font-mono text-[10px] text-slate-500 font-bold tracking-widest">{entry.piNo}</span>
-                                </td>
-                                <td className="p-4 text-center font-bold">
-                                  {entry.qty ? entry.qty.toLocaleString() : '-'}
-                                </td>
-                                <td className="p-4 text-center font-mono text-xs font-bold text-slate-600">
-                                  {entry.rate ? `₹${entry.rate}` : '-'}
+                                   {!entry.isInitial && (
+                                     <div className="flex flex-col gap-1 items-start">
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${entry.type.includes('Delivery') ? 'text-teal-700' : 'text-indigo-700'}`}>
+                                          {entry.type}
+                                        </span>
+                                        <span className="font-mono text-[10px] text-slate-500 font-bold tracking-widest">{entry.piNo}</span>
+                                     </div>
+                                   )}
                                 </td>
                                 <td className="p-4 text-center">
-                                  <span className="text-red-600 font-bold">₹{entry.debitAmt ? entry.debitAmt.toLocaleString(undefined, {minimumFractionDigits: 2}) : '0.00'}</span>
-                                </td>
-                                <td className="p-4 text-center bg-green-50/20">
-                                   <span className="text-green-700 font-black">₹{Math.abs(entry.balanceAmt || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                  {entry.isInitial ? <span className="text-indigo-600 font-black text-sm">{entry.qty.toLocaleString()} kg</span> : <span className="text-teal-600 font-black text-sm">-</span>}
                                 </td>
                                 <td className="p-4 text-center">
-                                  <span className="bg-indigo-600 text-white px-2 py-1 rounded text-xs font-black uppercase tracking-widest">{Math.abs(entry.balanceQty || 0).toLocaleString()} kg</span>
+                                  {!entry.isInitial && entry.qty > 0 ? <span className="text-teal-600 font-black text-sm">{entry.qty.toLocaleString()} kg</span> : <span className="text-slate-400">-</span>}
+                                </td>
+                                <td className="p-4 text-center">
+                                   <span className="text-slate-900 font-black text-sm">{Math.abs(entry.balanceQty).toLocaleString()} kg</span>
                                 </td>
                               </>
                             )}
