@@ -195,6 +195,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
         QUANTITY_KG: totalQty,
         RATE_PER_UNIT: items.length > 0 ? items[0].RATE_PER_UNIT : 0,
         PRODUCT_QUALITY: items.length > 0 ? items[0].PRODUCT_QUALITY : '',
+        HSN_CODE: items.length > 0 ? items[0].HSN_CODE || '' : '',
         UNIT_COUNT: items.length > 0 ? items[0].UNIT_COUNT : 0,
         ITEMS: JSON.stringify(items),
         SELLER_NAME: 'Yajur Lifting',
@@ -646,25 +647,6 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                     <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/10 text-slate-400 hover:text-white rounded-xl transition-colors">
                         <Activity size={28} className="rotate-45" />
                     </button>
-                </div>
-
-                <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 relative z-10 p-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm shadow-inner shadow-black/20">
-                    <div>
-                        <div className="text-[10px] font-black text-indigo-300/80 uppercase mb-1">Seller Identity</div>
-                        <div className="text-sm font-black text-white drop-shadow-sm">Yajur Lifting</div>
-                    </div>
-                    <div>
-                        <div className="text-[10px] font-black text-indigo-300/80 uppercase mb-1">Tax Fingerprint</div>
-                        <div className="text-sm font-black text-white line-clamp-1 drop-shadow-sm">19AAECS2882B3ZB</div>
-                    </div>
-                    <div>
-                        <div className="text-[10px] font-black text-indigo-300/80 uppercase mb-1">Corporate CIN</div>
-                        <div className="text-sm font-black text-white line-clamp-1 truncate drop-shadow-sm">U17100WB1980PLC032918</div>
-                    </div>
-                    <div>
-                        <div className="text-[10px] font-black text-indigo-300/80 uppercase mb-1">Certificate Stat</div>
-                        <div className="text-sm font-black text-white drop-shadow-sm">BVFR14492922</div>
-                    </div>
                 </div>
              </div>
 
