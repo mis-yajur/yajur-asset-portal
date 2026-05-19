@@ -758,12 +758,16 @@ function generatePdfFromTemplate(params) {
     const item = items[i-1];
     if (item && item.PRODUCT_QUALITY) {
       replacements[`<<SL${i}>>`] = String(i);
+      replacements[`<<HSN CODE${i}>>`] = item.HSN_CODE || " ";
+      replacements[`<<HSN_CODE${i}>>`] = item.HSN_CODE || " ";
       replacements[`<<PRODUCT / QUALITY${i}>>`] = item.PRODUCT_QUALITY || " ";
       replacements[`<<Unit${i}>>`] = item.UNIT_COUNT ? String(item.UNIT_COUNT) : " ";
       replacements[`<<Quantity${i}>>`] = fn(item.QUANTITY_KG);
       replacements[`<<Rate${i}>>`] = fn(item.RATE_PER_UNIT);
     } else {
       replacements[`<<SL${i}>>`] = " ";
+      replacements[`<<HSN CODE${i}>>`] = " ";
+      replacements[`<<HSN_CODE${i}>>`] = " ";
       replacements[`<<PRODUCT / QUALITY${i}>>`] = " ";
       replacements[`<<Unit${i}>>`] = " ";
       replacements[`<<Quantity${i}>>`] = " ";

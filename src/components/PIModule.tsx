@@ -917,7 +917,8 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                             value=""
                                             onChange={e => {
                                                 const items = [...(currentPI?.ITEMS as any[])];
-                                                items[index] = { ...items[index], PRODUCT_QUALITY: e.target.value };
+                                                const prod = products.find(p => p.QLTY_NAME === e.target.value);
+                                                items[index] = { ...items[index], PRODUCT_QUALITY: e.target.value, HSN_CODE: prod?.HSN_CODE || '' };
                                                 setCurrentEntry({ ...currentPI, ITEMS: items });
                                             }}
                                         >
@@ -941,7 +942,21 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">HSN Code</label>
+                                        <input 
+                                            type="text"
+                                            placeholder="e.g. 53061090"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40"
+                                            value={item.HSN_CODE || ''}
+                                            onChange={e => {
+                                                const items = [...(currentPI?.ITEMS as any[])];
+                                                items[index] = { ...items[index], HSN_CODE: e.target.value };
+                                                setCurrentEntry({ ...currentPI, ITEMS: items });
+                                            }}
+                                        />
+                                    </div>
                                     <div className="space-y-2">
                                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Unit/Box</label>
                                         <input 

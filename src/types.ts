@@ -64,6 +64,7 @@ export interface Product {
 
 export interface PIItem {
   PRODUCT_QUALITY: string;
+  HSN_CODE?: string;
   QUANTITY_KG: number;
   RATE_PER_UNIT: number;
   UNIT_COUNT: number;
