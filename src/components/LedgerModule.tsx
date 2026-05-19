@@ -9,6 +9,8 @@ interface LedgerModuleProps {
   onNotify: (t: string, m: string, s: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
+import { syncLedgerToSheet } from '../lib/ledgerSync';
+
 export function LedgerModule({ onNotify }: LedgerModuleProps) {
   const [activeTab, setActiveTab] = useState<'party' | 'stock'>('party');
   const [search, setSearch] = useState('');
@@ -18,9 +20,21 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
   const fetchLedger = async () => {
       setIsLoading(true);
       try {
+        console.log("Fetching ledger data...");
         const res = await apiCall('getLedger');
-        setLedgerEntriesRaw(res.data || []);
+        console.log("Got ledger data length:", res.data?.length);
+        if (!res.data || res.data.length === 0) {
+           console.log("Ledger empty, syncing from PI and Lifting...");
+           await syncLedgerToSheet();
+           console.log("Sync complete, fetching again...");
+           const res2 = await apiCall('getLedger');
+           console.log("Got ledger data length after sync:", res2.data?.length);
+           setLedgerEntriesRaw(res2.data || []);
+        } else {
+           setLedgerEntriesRaw(res.data);
+        }
       } catch (err) {
+        console.error("fetchLedger failed:", err);
         onNotify('Error', 'Failed to fetch ledger data', 'error');
       } finally {
         setIsLoading(false);
@@ -30,6 +44,7 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
   React.useEffect(() => {
     fetchLedger();
   }, [onNotify]);
+
 
   // Calculate Ledger Rows
   const filteredLedger = useMemo(() => {
@@ -89,31 +104,24 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
     return res;
   }, [ledgerEntriesRaw, activeTab, search]);
 
-  const syncToSheet = async () => {
-    try {
-      const rows = filteredLedger
-        .filter(e => !e.isSummary)
-        .map(e => ({
-          ID: Math.random().toString(36).substr(2, 9).toUpperCase(),
-          DATE: new Date(e.date).toLocaleString(),
-          ACCOUNT_PI: activeTab === 'stock' ? e.account : (e.piNo || e.group),
-          TYPE: e.type || '',
-          INWARD_TARGET_KG: activeTab === 'stock' ? (e.qtyIn || 0) : (e.isInitial ? e.qty : 0),
-          OUTWARD_DELIVERED_KG: activeTab === 'stock' ? (e.qtyOut || 0) : (!e.isInitial ? e.qty : 0),
-          BALANCE_KG: e.balanceQty || 0,
-          REMARKS: e.remarks || ''
-        }));
+  const forceAutoSync = async () => {
+     try {
+        setIsLoading(true);
+        console.log("Forcing re-sync of ledger sheet from scratch...");
+        onNotify('Info', 'Rebuilding Ledger Sheet from PI and Lifting data...', 'info');
+        await syncLedgerToSheet();
+        await fetchLedger();
+        onNotify('Success', 'Ledger Sheet rebuilt successfully.', 'success');
+     } catch (err) {
+        onNotify('Error', 'Ledger rebuild failed', 'error');
+     } finally {
+        setIsLoading(false);
+     }
+  };
 
-      // onNotify('Info', 'Initiating connection to mainframe...', 'info');
-      const res = await apiCall('syncLedger', { rows });
-      if (res.success) {
-        // onNotify('Success', 'Ledger Sheet Synchronized Successfully', 'success');
-      } else {
-        onNotify('Error', 'Sync Failure: ' + res.error, 'error');
-      }
-    } catch (err) {
-      onNotify('Error', 'Remote System Communication Error', 'error');
-    }
+  const syncToSheet = async () => {
+    // renamed to forceAutoSync
+    await forceAutoSync();
   };
 
   const exportPDF = () => {
