@@ -415,36 +415,38 @@ function Header({
 
   return (
     <header className="sticky top-0 z-50 bg-primary text-white border-b border-white/10 shadow-xl">
-      <div className="max-w-7xl mx-auto px-4 h-18 flex items-center justify-between">
-        {/* Brand */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-custom bg-accent flex items-center justify-center text-white shadow-lg shadow-accent/20">
-            <Building size={20} />
+      <div className="max-w-[1920px] mx-auto px-4 h-18 flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          {/* Brand */}
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-custom bg-accent flex items-center justify-center text-white shadow-lg shadow-accent/20">
+              <Building size={20} />
+            </div>
+            <div className="hidden xs:block pr-4 border-r border-white/10">
+              <h1 className="font-black text-lg xl:text-xl tracking-tight leading-none uppercase">Yajur Lifting</h1>
+              <p className="text-[10px] xl:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Lifting Portal</p>
+            </div>
           </div>
-          <div className="hidden xs:block">
-            <h1 className="font-black text-xl tracking-tight leading-none uppercase">Yajur Lifting</h1>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Lifting Portal</p>
-          </div>
-        </div>
 
-        {/* Desktop Nav */}
-        <nav className="hidden xl:flex items-center gap-1">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-custom text-sm font-black transition-all",
-                activePage === item.id 
-                  ? "bg-accent text-white shadow-lg shadow-accent/20" 
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
-              )}
-            >
-              {item.icon}
-              <span className="uppercase tracking-widest">{item.label}</span>
-            </button>
-          ))}
-        </nav>
+          {/* Desktop Nav */}
+          <nav className="hidden xl:flex items-center gap-1">
+            {navItems.map(item => (
+              <button
+                key={item.id}
+                onClick={() => onNavigate(item.id)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-custom text-sm font-black transition-all",
+                  activePage === item.id 
+                    ? "bg-accent text-white shadow-lg shadow-accent/20" 
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                )}
+              >
+                {item.icon}
+                <span className="uppercase tracking-widest">{item.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
 
         {/* Actions & User */}
         <div className="flex items-center gap-3">
