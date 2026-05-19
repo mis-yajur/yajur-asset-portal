@@ -137,7 +137,6 @@ export interface Lifting {
   TARGET_KG: number;
   DELIVERED_KG: number;
   REMAINING_KG: number;
-  FREQUENCY: number;
   STATUS: 'RUNNING' | 'COMPLETE' | 'NOT STARTED';
   LAST_DELIVERY_DATE?: string;
   LAST_QTY?: number;

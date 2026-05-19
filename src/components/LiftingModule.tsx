@@ -96,7 +96,6 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
             TARGET_KG: target,
             DELIVERED_KG: delivered,
             REMAINING_KG: remaining,
-            FREQUENCY: safeParseNumber(item.FREQUENCY) || 30,
             HISTORY: history,
             LAST_DELIVERY_DATE: item.LAST_DELIVERY_DATE || item.lastDeliveryDate || item.DELIVERY_DATE || item.deliveryDate || item.DATE || '' 
           };
@@ -350,7 +349,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
   };
 
   const exportCSV = () => {
-    const headers = ["Account", "Contact", "PI No.", "Target (kg)", "Delivered (kg)", "Remaining (kg)", "Status", "Delivery Date"];
+    const headers = ["Account", "Invoice Number", "PI No.", "Target (kg)", "Delivered (kg)", "Remaining (kg)", "Status", "Delivery Date"];
     const rows = filteredData.map(l => [
       l.ACCOUNT,
       l.CONTACT || '',
@@ -449,9 +448,17 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                       <td className="px-5 py-4">
                         <div className="flex flex-col">
                           <span className="text-base font-black text-primary uppercase leading-tight">{item.ACCOUNT}</span>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs font-bold text-slate-600">PI#</span>
-                            <span className="text-xs font-black text-accent tracking-widest">{item.PI_NO}</span>
+                          <div className="flex flex-col items-start gap-1 mt-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-600">PI#</span>
+                              <span className="text-xs font-black text-accent tracking-widest">{item.PI_NO}</span>
+                            </div>
+                            {item.CONTACT && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">INV#</span>
+                                <span className="text-xs font-black text-slate-700 tracking-widest">{item.CONTACT}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -494,7 +501,6 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex flex-col">
-                           <span className="text-xs font-black text-slate-900 uppercase">Cycle: {item.FREQUENCY} DAY</span>
                            <div className="flex items-center gap-1.5 mt-1.5">
                              <CalendarDays size={12} className="text-accent" />
                              <span className="text-xs font-black text-text-main">
@@ -689,21 +695,12 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                    </div>
 
                    <div className="space-y-2">
-                      <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Contact Link</label>
+                      <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Invoice Number</label>
                       <input 
-                        placeholder="Coordinator Name"
+                        placeholder="Invoice Number"
                         className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-accent/40"
                         value={currentEntry?.CONTACT || ''}
                         onChange={e => setCurrentEntry({ ...currentEntry, CONTACT: e.target.value })}
-                      />
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-text-dim uppercase tracking-widest ml-1">Cycle Duration (Days)</label>
-                      <input 
-                        type="number"
-                        className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-accent/40"
-                        value={currentEntry?.FREQUENCY || 30}
-                        onChange={e => setCurrentEntry({ ...currentEntry, FREQUENCY: Number(e.target.value) })}
                       />
                    </div>
 

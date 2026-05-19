@@ -415,8 +415,21 @@ function Header({
 
   return (
     <header className="sticky top-0 z-50 bg-primary text-white border-b border-white/10 shadow-xl">
-      <div className="max-w-[1920px] mx-auto px-4 h-18 flex items-center justify-between">
+      <div className="w-full px-4 h-18 flex items-center justify-between">
         <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 pr-6 border-r border-white/10">
+            <div className="w-9 h-9 rounded-full bg-teal-500 flex items-center justify-center font-black text-xs text-white border-2 border-primary shadow-lg">
+              {user?.name?.substring(0, 2).toUpperCase() || 'AD'}
+            </div>
+            <button 
+              onClick={onLogout}
+              className="p-2 text-slate-400 hover:text-rose-400 transition-colors" 
+              title="Logout"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+
           {/* Desktop Nav */}
           <nav className="hidden xl:flex items-center gap-1">
             {navItems.map(item => (
@@ -437,9 +450,9 @@ function Header({
           </nav>
         </div>
 
-        {/* Actions & User */}
+        {/* Actions (Notifications & Theme Picker) */}
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 pr-2 border-r border-white/10 relative">
+          <div className="hidden sm:flex items-center gap-2 relative">
             <button 
                 onClick={() => setShowThemePicker(!showThemePicker)}
                 className="p-2 text-slate-400 hover:text-white transition-colors relative"
@@ -539,23 +552,6 @@ function Header({
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="hidden md:block text-right">
-              <div className="text-xs font-black text-white leading-none capitalize">{user?.name}</div>
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1">{user?.role}</div>
-            </div>
-            <div className="w-9 h-9 rounded-full bg-teal-500 flex items-center justify-center font-black text-xs text-white border-2 border-white/10">
-              {user?.name?.substring(0, 2).toUpperCase() || 'AD'}
-            </div>
-            <button 
-              onClick={onLogout}
-              className="p-2 text-slate-400 hover:text-rose-400 transition-colors" 
-              title="Logout"
-            >
-              <LogOut size={18} />
-            </button>
           </div>
 
           {/* Mobile Menu Toggle */}
