@@ -108,6 +108,8 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
      try {
         setIsLoading(true);
         console.log("Forcing re-sync of ledger sheet from scratch...");
+        const lifts = await apiCall('getLiftingData');
+        console.log("DEBUG LIFTS", lifts.data?.slice(0, 2));
         onNotify('Info', 'Rebuilding Ledger Sheet from PI and Lifting data...', 'info');
         await syncLedgerToSheet();
         await fetchLedger();
@@ -297,6 +299,7 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                         ) : (
                           <>
                             <th className="p-4">ENTRY DATE</th>
+                            <th className="p-4">PARTICULARS / REF</th>
                             <th className="p-4 text-center">INWARD / TARGET</th>
                             <th className="p-4 text-center">OUTWARD (DELIVERED)</th>
                             <th className="p-4 text-center">BALANCE</th>
@@ -339,12 +342,23 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                             ) : (
                               <>
                                 <td className="p-4">
+                                   <div className="flex flex-col gap-1">
+                                     <div className="text-xs font-black text-slate-800 whitespace-nowrap">{new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}</div>
+                                     <div className="text-[10px] font-bold text-teal-700 whitespace-nowrap">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                   </div>
+                                </td>
+                                <td className="p-4">
                                    {entry.isInitial ? (
-                                      <div className="text-xs font-black text-teal-800 tracking-wide">Initial Allocation</div>
+                                      <div className="flex flex-col gap-1 items-start">
+                                        <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Initial Allocation</span>
+                                        <span className="font-mono text-[10px] text-indigo-500 font-bold tracking-widest">{entry.piNo}</span>
+                                      </div>
                                    ) : (
-                                     <div className="flex flex-wrap items-center gap-2">
-                                       <div className="text-xs font-black text-slate-800 whitespace-nowrap">{new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}</div>
-                                       <div className="text-[10px] font-bold text-teal-700 whitespace-nowrap">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                     <div className="flex flex-col gap-1 items-start">
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider ${entry.type?.includes('Delivery') ? 'text-teal-700' : 'text-slate-600'}`}>
+                                          {entry.type}
+                                        </span>
+                                        <span className="font-mono text-[10px] text-slate-500 font-bold tracking-widest">{entry.piNo}</span>
                                      </div>
                                    )}
                                 </td>
