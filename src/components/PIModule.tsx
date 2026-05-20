@@ -898,33 +898,29 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                 <div className="space-y-2 pr-6">
                                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Product Quality / Detail {index + 1}</label>
                                     <div className="flex gap-2">
-                                        <select 
-                                            className="w-1/3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40 h-fit"
-                                            value=""
-                                            onChange={e => {
-                                                const items = [...(currentPI?.ITEMS as any[])];
-                                                const prod = products.find(p => p.QLTY_NAME === e.target.value);
-                                                items[index] = { ...items[index], PRODUCT_QUALITY: e.target.value, HSN_CODE: prod?.HSN_CODE || '' };
-                                                setCurrentEntry({ ...currentPI, ITEMS: items });
-                                            }}
-                                        >
-                                            <option value="">Quick Select</option>
-                                            {products.map(p => (
-                                                <option key={p.QLTY_CODE} value={p.QLTY_NAME}>{p.QLTY_NAME} ({p.QLTY_CODE})</option>
-                                            ))}
-                                        </select>
-                                        <textarea 
+                                        <input 
                                             required={index === 0}
-                                            rows={2}
-                                            placeholder="e.g. FLAX YARN - 6 LEA NATURAL&#10;UNPOLISHED IN HANK FORM"
-                                            className="w-2/3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40 resize-none uppercase"
+                                            list={`product-list-${index}`}
+                                            placeholder="e.g. FLAX YARN - 6 LEA NATURAL"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-accent/40 uppercase"
                                             value={item.PRODUCT_QUALITY}
                                             onChange={e => {
                                                 const items = [...(currentPI?.ITEMS as any[])];
-                                                items[index] = { ...items[index], PRODUCT_QUALITY: e.target.value };
+                                                const val = e.target.value;
+                                                const prod = products.find(p => p.QLTY_NAME === val);
+                                                if (prod) {
+                                                    items[index] = { ...items[index], PRODUCT_QUALITY: val, HSN_CODE: prod.HSN_CODE || '' };
+                                                } else {
+                                                    items[index] = { ...items[index], PRODUCT_QUALITY: val };
+                                                }
                                                 setCurrentEntry({ ...currentPI, ITEMS: items });
                                             }}
                                         />
+                                        <datalist id={`product-list-${index}`}>
+                                            {products.map(p => (
+                                                <option key={p.QLTY_CODE} value={p.QLTY_NAME} />
+                                            ))}
+                                        </datalist>
                                     </div>
                                 </div>
 
