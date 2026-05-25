@@ -154,6 +154,31 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
     loadData();
   }, []);
 
+  const getPiProducts = (piNo: string) => {
+    const pi = piData.find(p => p.PI_NO && String(p.PI_NO).trim().toUpperCase() === String(piNo).trim().toUpperCase());
+    if (!pi) return [];
+    let items: any[] = [];
+    if (typeof pi.ITEMS === 'string') {
+      try {
+        items = JSON.parse(pi.ITEMS);
+      } catch (e) {
+        items = [];
+      }
+    } else if (Array.isArray(pi.ITEMS)) {
+      items = pi.ITEMS;
+    }
+    if (items.length === 0 && pi.PRODUCT_QUALITY) {
+      items = [{
+        PRODUCT_QUALITY: pi.PRODUCT_QUALITY,
+        HSN_CODE: pi.HSN_CODE || '',
+        QUANTITY_KG: pi.QUANTITY_KG,
+        RATE_PER_UNIT: pi.RATE_PER_UNIT,
+        UNIT_COUNT: pi.UNIT_COUNT
+      }];
+    }
+    return items;
+  };
+
   const filteredData = useMemo(() => {
     return liftingData.filter(item => {
       const matchesSearch = 
@@ -185,11 +210,6 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
   const handleAddDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLifting || newDelivery.quantityKg <= 0) return;
-
-    if (newDelivery.quantityKg > (selectedLifting.REMAINING_KG || 0)) {
-      onNotify('Limit Exceeded', `Cannot dispatch ${newDelivery.quantityKg}kg. Remaining balance is only ${selectedLifting.REMAINING_KG}kg.`, 'error');
-      return;
-    }
 
     setIsLoading(true);
     try {
@@ -455,10 +475,25 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                         <div className="flex flex-col">
                           <span className="text-base font-black text-primary uppercase leading-tight">{item.ACCOUNT}</span>
                           <div className="flex flex-col items-start gap-1 mt-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs font-bold text-slate-600">PI#</span>
                               <span className="text-xs font-black text-accent tracking-widest">{item.PI_NO}</span>
                             </div>
+                            {(() => {
+                              const products = getPiProducts(item.PI_NO);
+                              if (products.length > 0) {
+                                return (
+                                  <div className="mt-1 flex flex-wrap gap-1 max-w-[280px]">
+                                    {products.map((p, idx) => (
+                                      <span key={idx} className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-black border border-slate-200/60 break-all inline-block truncate" title={p.PRODUCT_QUALITY}>
+                                        {p.PRODUCT_QUALITY}: <span className="text-teal-600 font-extrabold">{p.QUANTITY_KG} kg</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                             {item.CONTACT && (
                               <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-bold text-slate-500 uppercase">INV#</span>
@@ -746,6 +781,46 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                         onChange={e => setCurrentEntry({ ...currentEntry, LAST_DELIVERY_DATE: e.target.value })}
                       />
                    </div>
+
+                   {/* Product Wise Breakdown */}
+                   {(() => {
+                     if (!currentEntry?.PI_NO) return null;
+                     const products = getPiProducts(currentEntry.PI_NO);
+                     if (products.length === 0) return null;
+                     return (
+                       <div className="md:col-span-2 space-y-2 border border-border-main bg-surface-muted/30 rounded-2xl p-4 text-left">
+                         <h4 className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">
+                           PI Product-Wise Details
+                         </h4>
+                         <div className="overflow-hidden border border-border-main rounded-xl bg-surface-card">
+                           <table className="w-full text-left border-collapse text-xs">
+                             <thead>
+                               <tr className="bg-surface-muted border-b border-border-main font-black text-text-dim uppercase tracking-wider text-[10px]">
+                                 <th className="px-3 py-2">Product / Quality Details</th>
+                                 <th className="px-3 py-2 text-center">HSN</th>
+                                 <th className="px-3 py-2 text-center">Box/Unit</th>
+                                 <th className="px-3 py-2 text-right">Quantity (Kg)</th>
+                                 <th className="px-3 py-2 text-right">Rate</th>
+                               </tr>
+                             </thead>
+                             <tbody className="divide-y divide-border-main text-text-main font-bold">
+                               {products.map((p, idx) => (
+                                 <tr key={idx} className="hover:bg-surface-muted/50">
+                                   <td className="px-3 py-2.5 text-primary text-xs font-black leading-tight">
+                                     {p.PRODUCT_QUALITY}
+                                   </td>
+                                   <td className="px-3 py-2.5 text-center text-text-dim font-bold">{p.HSN_CODE || '-'}</td>
+                                   <td className="px-3 py-2.5 text-center font-bold">{p.UNIT_COUNT || 0}</td>
+                                   <td className="px-3 py-2.5 text-right text-teal-600 font-extrabold">{Number(p.QUANTITY_KG || 0).toLocaleString()} kg</td>
+                                   <td className="px-3 py-2.5 text-right font-black">₹{Number(p.RATE_PER_UNIT || 0).toLocaleString()}</td>
+                                 </tr>
+                               ))}
+                             </tbody>
+                           </table>
+                         </div>
+                       </div>
+                     );
+                   })()}
                 </div>
 
                 <div className="pt-6 border-t border-border-main flex items-center justify-between">
@@ -793,6 +868,25 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                         <span className="text-sm font-black text-rose-600">{(selectedLifting.REMAINING_KG || 0).toLocaleString()}kg</span>
                     </div>
                     <div className="text-[10px] font-bold text-text-dim text-right">Against PI: {selectedLifting.PI_NO}</div>
+
+                    {/* Product List Breakdown in Add Delivery */}
+                    {(() => {
+                      const products = getPiProducts(selectedLifting.PI_NO);
+                      if (products.length > 0) {
+                        return (
+                          <div className="mt-2 border-t border-dashed border-border-main pt-2 flex flex-col gap-1 text-left">
+                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">PI Products:</div>
+                            {products.map((p, idx) => (
+                              <div key={idx} className="flex justify-between text-[11px] font-bold text-slate-600 font-mono">
+                                <span className="truncate max-w-[200px]" title={p.PRODUCT_QUALITY}>{p.PRODUCT_QUALITY}</span>
+                                <span className="text-slate-800 font-extrabold shrink-0">{p.QUANTITY_KG} kg</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                 </div>
 
                 <div className="space-y-4">
@@ -800,19 +894,14 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                       <div className="flex justify-between items-end">
                          <label className="text-xs font-black text-text-dim uppercase tracking-widest ml-1">Dispatch Quantum (KG)</label>
                          {newDelivery.quantityKg > (selectedLifting.REMAINING_KG || 0) && (
-                           <span className="text-[10px] font-black text-rose-500 uppercase animate-pulse">Exceeds Balance</span>
+                           <span className="text-[10px] font-bold text-amber-500 uppercase animate-pulse">Exceeds Balance (Allowed)</span>
                          )}
                       </div>
                       <input 
                         required
                         autoFocus
                         type="number"
-                        className={cn(
-                          "w-full bg-surface-muted border rounded-xl px-4 py-3 text-lg font-black outline-none transition-all",
-                          newDelivery.quantityKg > (selectedLifting.REMAINING_KG || 0) 
-                            ? "border-rose-500 ring-4 ring-rose-500/10 text-rose-600 focus:border-rose-600" 
-                            : "border-border-main focus:border-accent"
-                        )}
+                        className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-3 text-lg font-black outline-none focus:border-accent transition-all duration-200"
                         placeholder="0.00"
                         value={newDelivery.quantityKg || ''}
                         onChange={e => setNewDelivery({ ...newDelivery, quantityKg: Number(e.target.value) })}
@@ -840,10 +929,10 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                     </button>
                     <button 
                         type="submit"
-                        disabled={newDelivery.quantityKg <= 0 || newDelivery.quantityKg > (selectedLifting.REMAINING_KG || 0) || isLoading}
+                        disabled={newDelivery.quantityKg <= 0 || isLoading}
                         className={cn(
                           "flex-[2] py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                          newDelivery.quantityKg <= 0 || newDelivery.quantityKg > (selectedLifting.REMAINING_KG || 0)
+                          newDelivery.quantityKg <= 0
                             ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                             : "bg-accent text-white shadow-xl shadow-accent/20 hover:scale-[1.02] active:scale-95"
                         )}
