@@ -60,6 +60,30 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
           return { ...item, HISTORY: history };
         });
 
+        const getProductsFromPi = (pi: any) => {
+          if (!pi) return [];
+          let items: any[] = [];
+          if (typeof pi.ITEMS === 'string') {
+            try {
+              items = JSON.parse(pi.ITEMS);
+            } catch (e) {
+              items = [];
+            }
+          } else if (Array.isArray(pi.ITEMS)) {
+            items = pi.ITEMS;
+          }
+          if (items.length === 0 && pi.PRODUCT_QUALITY) {
+            items = [{
+              PRODUCT_QUALITY: pi.PRODUCT_QUALITY,
+              QUANTITY_KG: pi.QUANTITY_KG
+            }];
+          }
+          return items.map(p => ({
+            productName: p.PRODUCT_QUALITY || p.productName || p.PRODUCT || p.quality || '',
+            qty: p.QUANTITY_KG || p.quantityKg || p.qty || 0
+          }));
+        };
+
         const partyEntries: any[] = [];
         const stockEntries: any[] = [];
 
@@ -69,6 +93,12 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
 
           const lifts = parsedLifts.filter(l => (l.PI_NO || '').trim().toUpperCase() === piKey.toUpperCase());
           const isGeneral = (name: string) => String(name || '').trim().toUpperCase() === 'GENERAL ACCOUNT';
+
+          const items = getProductsFromPi(pi);
+          const pq: {[key: string]: number} = {};
+          items.forEach(it => {
+            if (it.productName) pq[it.productName] = Number(it.qty) || 0;
+          });
 
           if (lifts.length > 0) {
             lifts.forEach(lift => {
@@ -82,7 +112,8 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                 qtyOut: 0,
                 isInitial: true,
                 isStock: false,
-                remarks: `Target set for ${pi.PRODUCT_QUALITY}`
+                remarks: `Target set for ${pi.PRODUCT_QUALITY}`,
+                productQuantities: pq
               });
             });
           } else if (!isGeneral(pi.CUSTOMER_NAME)) {
@@ -95,7 +126,8 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
               qtyOut: 0,
               isInitial: true,
               isStock: false,
-              remarks: `Target set for ${pi.PRODUCT_QUALITY}`
+              remarks: `Target set for ${pi.PRODUCT_QUALITY}`,
+              productQuantities: pq
             });
           }
 
@@ -107,7 +139,8 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
             qtyIn: Number(pi.QUANTITY_KG) || 0,
             qtyOut: 0,
             isStock: true,
-            remarks: `PI Created: ${pi.PRODUCT_QUALITY || ''}`
+            remarks: `PI Created: ${pi.PRODUCT_QUALITY || ''}`,
+            productQuantities: pq
           });
         });
 
@@ -122,7 +155,8 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
             qtyIn: 0,
             qtyOut: Number(h.quantityKg) || 0,
             isStock: false,
-            remarks: `Dispatch`
+            remarks: `Dispatch`,
+            productQuantities: h.productQuantities
           }));
           let mappedDeliveriesStock = history.map(h => ({
               date: h.deliveryDate || h.timestamp,
@@ -132,7 +166,8 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
               qtyIn: 0,
               qtyOut: Number(h.quantityKg) || 0,
               isStock: true,
-              remarks: `Dispatch`
+              remarks: `Dispatch`,
+              productQuantities: h.productQuantities
             }));
 
           if (mappedDeliveriesParties.length === 0 && Number(lift.DELIVERED_KG) > 0) {
@@ -172,7 +207,8 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
           INWARD_TARGET_KG: e.qtyIn || 0,
           OUTWARD_DELIVERED_KG: e.qtyOut || 0,
           BALANCE_KG: 0,
-          REMARKS: `${e.piNo}||${e.isInitial||false}` 
+          REMARKS: `${e.piNo}||${e.isInitial||false}`,
+          PRODUCT_QUANTITIES: e.productQuantities ? JSON.stringify(e.productQuantities) : undefined
         }));
         
         setLedgerEntriesRaw(rows);
@@ -224,7 +260,8 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
            qtyOut: Number(entry.OUTWARD_DELIVERED_KG) || 0,
            isInitial: isInit,
            group: groupKey,
-           id: entry.ID
+           id: entry.ID,
+           productQuantities: entry.PRODUCT_QUANTITIES ? JSON.parse(entry.PRODUCT_QUANTITIES) : undefined
        });
     });
 
@@ -470,6 +507,18 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                                       <span className="font-mono text-[10px] text-slate-500 font-bold">
                                         {entry.account}
                                       </span>
+                                      {entry.productQuantities && typeof entry.productQuantities === 'object' && Object.entries(entry.productQuantities).some(([_, qty]) => Number(qty) > 0) && (
+                                        <div className="mt-2 flex flex-col gap-1 border-l-2 border-slate-200 pl-2 max-w-[280px]">
+                                          {Object.entries(entry.productQuantities).map(([pName, qty]) => {
+                                            if (!qty || Number(qty) <= 0) return null;
+                                            return (
+                                              <span key={pName} className="text-[9px] font-bold text-slate-500 leading-tight block truncate" title={pName}>
+                                                {pName}: <span className={`${entry.type.includes('Delivery') ? 'text-teal-700' : 'text-indigo-700'} font-black`}>{Number(qty).toLocaleString()} kg</span>
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
                                    </div>
                                 </td>
                                 <td className="p-4 text-center">
@@ -486,11 +535,41 @@ export function LedgerModule({ onNotify }: LedgerModuleProps) {
                               <>
                                 <td className="px-6 py-4">
                                    {entry.isInitial ? (
-                                      <div className="text-sm font-bold text-indigo-700 tracking-tight">Initial Allocation</div>
+                                      <div className="space-y-1">
+                                        <div className="text-sm font-bold text-indigo-700 tracking-tight">Initial Allocation</div>
+                                        <div className="text-[10px] font-black text-slate-400">PI: {entry.piNo}</div>
+                                        {entry.productQuantities && typeof entry.productQuantities === 'object' && Object.entries(entry.productQuantities).some(([_, qty]) => Number(qty) > 0) && (
+                                          <div className="mt-1.5 flex flex-col gap-1 border-l-2 border-indigo-200 pl-2 max-w-[280px]">
+                                            {Object.entries(entry.productQuantities).map(([pName, qty]) => {
+                                              if (!qty || Number(qty) <= 0) return null;
+                                              return (
+                                                <span key={pName} className="text-[9px] font-bold text-slate-500 leading-tight block truncate" title={pName}>
+                                                  {pName}: <span className="text-indigo-600 font-extrabold">{Number(qty).toLocaleString()} kg</span>
+                                                </span>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
                                    ) : (
-                                      <div className="text-sm font-black text-teal-900 whitespace-nowrap">
-                                        {new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}
-                                        <span className="text-xs font-bold text-teal-700 ml-3">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toUpperCase()}</span>
+                                      <div className="space-y-1">
+                                        <div className="text-sm font-black text-teal-900 whitespace-nowrap">
+                                          {new Date(entry.date).toLocaleDateString('en-GB').replace(/\//g, '-')}
+                                          <span className="text-xs font-bold text-teal-700 ml-3">{new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toUpperCase()}</span>
+                                        </div>
+                                        <div className="text-[10px] font-black text-slate-400">PI: {entry.piNo}</div>
+                                        {entry.productQuantities && typeof entry.productQuantities === 'object' && Object.entries(entry.productQuantities).some(([_, qty]) => Number(qty) > 0) && (
+                                          <div className="mt-1.5 flex flex-col gap-1 border-l-2 border-teal-200 pl-2 max-w-[280px]">
+                                            {Object.entries(entry.productQuantities).map(([pName, qty]) => {
+                                              if (!qty || Number(qty) <= 0) return null;
+                                              return (
+                                                <span key={pName} className="text-[9px] font-bold text-slate-500 leading-tight block truncate" title={pName}>
+                                                  {pName}: <span className="text-teal-600 font-extrabold">{Number(qty).toLocaleString()} kg</span>
+                                                </span>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
                                       </div>
                                    )}
                                 </td>
