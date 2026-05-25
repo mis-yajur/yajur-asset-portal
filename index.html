@@ -4,6 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Yajur Lifting</title>
+    <script>
+      // Defensive shim against third-party/extension scripts attempting direct assignment 
+      // to window.fetch on modern browsers/iframes.
+      (function() {
+        try {
+          var _fetch = window.fetch;
+          Object.defineProperty(window, 'fetch', {
+            configurable: true,
+            enumerable: true,
+            get: function() {
+              return _fetch;
+            },
+            set: function(val) {
+              _fetch = val;
+            }
+          });
+        } catch (e) {
+          console.warn("Failed to define custom window.fetch wrapper:", e);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
