@@ -45,6 +45,7 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
   const [currentEntry, setCurrentEntry] = useState<Partial<Lifting> | null>(null);
   const [selectedLifting, setSelectedLifting] = useState<Lifting | null>(null);
   const [newDelivery, setNewDelivery] = useState({ quantityKg: 0, date: new Date().toISOString().split('T')[0] });
+  const [productQuantities, setProductQuantities] = useState<{[key: string]: number}>({});
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 200;
@@ -179,6 +180,39 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
     return items;
   };
 
+  useEffect(() => {
+    if (isAddDeliveryModalOpen && selectedLifting) {
+      const products = getPiProducts(selectedLifting.PI_NO);
+      const initial: {[key: string]: number} = {};
+      products.forEach(p => {
+        initial[p.PRODUCT_QUALITY] = 0;
+      });
+      setProductQuantities(initial);
+      setNewDelivery({
+        quantityKg: 0,
+        date: new Date().toISOString().split('T')[0]
+      });
+    }
+  }, [isAddDeliveryModalOpen, selectedLifting]);
+
+  const handleProductQuantityChange = (productName: string, val: number) => {
+    setProductQuantities(prev => {
+      const updated = {
+        ...prev,
+        [productName]: val
+      };
+      
+      // Calculate the sum in real-time
+      const total = (Object.values(updated) as number[]).reduce((sum, curr) => sum + (curr || 0), 0);
+      setNewDelivery(subPrev => ({
+        ...subPrev,
+        quantityKg: total
+      }));
+
+      return updated;
+    });
+  };
+
   const filteredData = useMemo(() => {
     return liftingData.filter(item => {
       const matchesSearch = 
@@ -219,7 +253,8 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
         piNo: selectedLifting.PI_NO,
         quantityKg: newDelivery.quantityKg,
         deliveryDate: newDelivery.date,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        productQuantities: productQuantities
       };
       
       const newHistoryJson = JSON.stringify([
@@ -869,19 +904,42 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                     </div>
                     <div className="text-[10px] font-bold text-text-dim text-right">Against PI: {selectedLifting.PI_NO}</div>
 
-                    {/* Product List Breakdown in Add Delivery */}
+                    {/* Product List Breakdown with individual inputs in Add Delivery */}
                     {(() => {
                       const products = getPiProducts(selectedLifting.PI_NO);
                       if (products.length > 0) {
                         return (
-                          <div className="mt-2 border-t border-dashed border-border-main pt-2 flex flex-col gap-1 text-left">
-                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">PI Products:</div>
-                            {products.map((p, idx) => (
-                              <div key={idx} className="flex justify-between text-[11px] font-bold text-slate-600 font-mono">
-                                <span className="truncate max-w-[200px]" title={p.PRODUCT_QUALITY}>{p.PRODUCT_QUALITY}</span>
-                                <span className="text-slate-800 font-extrabold shrink-0">{p.QUANTITY_KG} kg</span>
-                              </div>
-                            ))}
+                          <div className="mt-4 border-t border-dashed border-border-main pt-4 flex flex-col gap-2.5 text-left">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Specify Dispatch Quantities:</div>
+                            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                              {products.map((p, idx) => {
+                                const val = productQuantities[p.PRODUCT_QUALITY] || '';
+                                return (
+                                  <div key={idx} className="flex items-center justify-between gap-3 bg-surface-card p-2 rounded-xl border border-border-main/50 shadow-sm">
+                                    <div className="flex flex-col flex-1 min-w-0">
+                                      <span className="text-[11px] font-black text-slate-700 truncate" title={p.PRODUCT_QUALITY}>
+                                        {p.PRODUCT_QUALITY}
+                                      </span>
+                                      <span className="text-[9px] font-bold text-slate-400">
+                                        Target: {p.QUANTITY_KG} kg
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        min="0"
+                                        className="w-24 bg-surface-base border border-border-main rounded-lg px-2 py-1 text-right text-xs font-black text-primary outline-none focus:border-accent"
+                                        placeholder="0.00"
+                                        value={val}
+                                        onChange={e => handleProductQuantityChange(p.PRODUCT_QUALITY, Number(e.target.value))}
+                                      />
+                                      <span className="text-[10px] font-black text-text-dim">kg</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         );
                       }
@@ -898,13 +956,11 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                          )}
                       </div>
                       <input 
-                        required
-                        autoFocus
+                        readOnly
                         type="number"
-                        className="w-full bg-surface-muted border border-border-main rounded-xl px-4 py-3 text-lg font-black outline-none focus:border-accent transition-all duration-200"
+                        className="w-full bg-slate-100/80 border border-slate-200 text-slate-500 rounded-xl px-4 py-3 text-lg font-black outline-none cursor-not-allowed text-center"
                         placeholder="0.00"
                         value={newDelivery.quantityKg || ''}
-                        onChange={e => setNewDelivery({ ...newDelivery, quantityKg: Number(e.target.value) })}
                       />
                    </div>
                    <div className="space-y-2">
@@ -995,8 +1051,20 @@ export default function LiftingModule({ onNotify, onLog }: LiftingModuleProps) {
                                     runningB -= entry.quantityKg;
                                     return (
                                       <tr key={entry.id} className="hover:bg-surface-muted transition-colors">
-                                          <td className="px-6 py-4">
+                                          <td className="px-6 py-4 text-left">
                                               <div className="text-xs font-black text-text-main">{formatDate(entry.deliveryDate)} <span className="text-[10px] font-bold text-text-dim ml-2">{new Date(entry.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
+                                              {entry.productQuantities && typeof entry.productQuantities === 'object' && Object.entries(entry.productQuantities).some(([_, qty]) => Number(qty) > 0) && (
+                                                <div className="mt-1.5 flex flex-col gap-0.5 border-l-2 border-indigo-200 pl-2 max-w-[325px]">
+                                                  {Object.entries(entry.productQuantities).map(([pName, qty]) => {
+                                                    if (!qty || Number(qty) <= 0) return null;
+                                                    return (
+                                                      <span key={pName} className="text-[9px] font-black text-slate-500 leading-tight block truncate" title={pName}>
+                                                        {pName}: <span className="text-teal-600 font-extrabold">{Number(qty).toLocaleString()} kg</span>
+                                                      </span>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
                                           </td>
                                           <td className="px-6 py-4 text-right text-xs text-text-dim font-bold">-</td>
                                           <td className="px-6 py-4 text-right">
