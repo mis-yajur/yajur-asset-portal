@@ -112,6 +112,29 @@ function initializeSheets() {
     if (!sheet) {
       sheet = ss.insertSheet(sheetName);
       sheet.appendRow(sheetsConfig[sheetName]);
+    } else {
+      // Sheet exists, let's check and append missing headers safely without altering any data
+      const lastCol = sheet.getLastColumn();
+      let existingHeaders = [];
+      if (lastCol > 0) {
+        existingHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) {
+          return String(h).trim();
+        });
+      }
+      
+      const missingHeaders = [];
+      sheetsConfig[sheetName].forEach(function(h) {
+        if (existingHeaders.indexOf(h) === -1) {
+          missingHeaders.push(h);
+        }
+      });
+      
+      if (missingHeaders.length > 0) {
+        // Safe, non-destructive operation: append missing headers at the end of Row 1 
+        const startColumn = Math.max(lastCol, 0) + 1;
+        sheet.getRange(1, startColumn, 1, missingHeaders.length).setValues([missingHeaders]);
+        console.log("Appended missing headers to sheet " + sheetName + ": " + JSON.stringify(missingHeaders));
+      }
     }
     
     if (sheet.getLastRow() === 1) {
