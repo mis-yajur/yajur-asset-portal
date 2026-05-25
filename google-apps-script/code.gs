@@ -733,7 +733,6 @@ function generatePdfFromTemplate(params) {
   // Replacements Map
   const itemTotalVal = Number(params.ITEM_TOTAL) || 0;
   const cashDiscountPctVal = Number(params.CASH_DISCOUNT) || 0;
-  const discountAmountVal = (itemTotalVal * cashDiscountPctVal) / 100;
 
   const replacements = {
     "<<PROFORMA INVOICE NO>>": params.PI_NO || " ",
@@ -749,11 +748,7 @@ function generatePdfFromTemplate(params) {
          params.DELIVERY_GST_NO ? `GSTIN :\t${params.DELIVERY_GST_NO}` : (params.CUSTOMER_GST_NO ? `GSTIN :\t${params.CUSTOMER_GST_NO}` : "")
     ].filter(Boolean).join("\n") || " ",
     "<<currency>>": params.CURRENCY || "Rs",
-    "<<Discount>>": discountAmountVal > 0 ? discountAmountVal.toFixed(2) : "0.00",
     "<<Delivery Charges >>": params.DELIVERY_CHARGES || "0.00",
-    "<<CGST%>>": params.CGST_PERCENT || "0",
-    "<<SGST%>>": params.SGST_PERCENT || "0",
-    "<<IGST%>>": params.IGST_PERCENT || "5",
     "<<OTHER_CHARGES>>": params.OTHER_CHARGES || "0.00",
     "<<Payment Terms>>": params.PAYMENT_TERMS || " ",
     "<<Note>>": params.NOTE || " ",
@@ -815,6 +810,28 @@ function generatePdfFromTemplate(params) {
      // To handle possible edge cases we loop, but replaceAllWith usually handles it
      finder.replaceAllWith(replacements[key] || " ");
   }
+
+  // Handle percentage placeholders specifically (so formulas calculate correctly with raw numbers while showing % symbol on PDF)
+  const pctPlaceholderConfigs = [
+    { key: "<<Discount>>", val: cashDiscountPctVal, hasDecimal: String(params.CASH_DISCOUNT).indexOf('.') !== -1 },
+    { key: "<<CGST%>>", val: Number(params.CGST_PERCENT) || 0, hasDecimal: String(params.CGST_PERCENT).indexOf('.') !== -1 },
+    { key: "<<SGST%>>", val: Number(params.SGST_PERCENT) || 0, hasDecimal: String(params.SGST_PERCENT).indexOf('.') !== -1 },
+    { key: "<<IGST%>>", val: params.IGST_PERCENT !== undefined ? Number(params.IGST_PERCENT) : 5, hasDecimal: String(params.IGST_PERCENT).indexOf('.') !== -1 }
+  ];
+
+  pctPlaceholderConfigs.forEach(function(config) {
+     var finder = newSheet.createTextFinder(config.key);
+     var cell = finder.findNext();
+     while (cell) {
+        cell.setValue(config.val);
+        if (config.hasDecimal) {
+           cell.setNumberFormat('0.00"%"');
+        } else {
+           cell.setNumberFormat('0"%"');
+        }
+        cell = finder.findNext();
+     }
+  });
   
   SpreadsheetApp.flush();
   
