@@ -177,12 +177,15 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       });
       
       const deliveryCharges = Number(currentPI?.DELIVERY_CHARGES) || 0;
+      const cashDiscountPct = Number(currentPI?.CASH_DISCOUNT) || 0;
+      const cashDiscountAmount = (totalAmountBeforeTax * cashDiscountPct / 100);
+
       const cgstPct = Number(currentPI?.CGST_PERCENT) || 0;
       const sgstPct = Number(currentPI?.SGST_PERCENT) || 0;
       const igstPct = Number(currentPI?.IGST_PERCENT) || 5;
       const otherCharges = Number(currentPI?.OTHER_CHARGES) || 0;
       
-      const taxBase = totalAmountBeforeTax + deliveryCharges;
+      const taxBase = totalAmountBeforeTax - cashDiscountAmount + deliveryCharges;
       const totalAmount = taxBase + (taxBase * cgstPct / 100) + (taxBase * sgstPct / 100) + (taxBase * igstPct / 100) + otherCharges;
 
       // Ensure INVOICE_DATE is set
@@ -1076,7 +1079,16 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                 <div className="grid grid-cols-1 gap-8 ring-1 ring-slate-100 p-6 rounded-3xl bg-slate-50/30">
                     <div className="space-y-4">
                         <h4 className="text-sm font-black text-primary uppercase tracking-widest border-b border-border-main pb-2">Fiscal Impact (Taxes & Charges)</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cash Discount (%)</label>
+                                <input 
+                                    placeholder="0"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-accent/40"
+                                    value={currentPI?.CASH_DISCOUNT || ''}
+                                    onChange={e => setCurrentEntry({ ...currentPI, CASH_DISCOUNT: e.target.value })}
+                                />
+                            </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Delivery Charges</label>
                                 <input 
@@ -1141,7 +1153,9 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
                                     items.forEach((it: any) => {
                                         totalAmt += (Number(it.QUANTITY_KG) || 0) * (Number(it.RATE_PER_UNIT) || 0);
                                     });
-                                    const taxBase = totalAmt + (Number(currentPI?.DELIVERY_CHARGES) || 0);
+                                    const cashDiscountPct = Number(currentPI?.CASH_DISCOUNT) || 0;
+                                    const cashDiscountAmt = totalAmt * cashDiscountPct / 100;
+                                    const taxBase = totalAmt - cashDiscountAmt + (Number(currentPI?.DELIVERY_CHARGES) || 0);
                                     const cgst = taxBase * (Number(currentPI?.CGST_PERCENT) || 0) / 100;
                                     const sgst = taxBase * (Number(currentPI?.SGST_PERCENT) || 0) / 100;
                                     const igstPct = currentPI?.IGST_PERCENT !== undefined ? Number(currentPI.IGST_PERCENT) : 5;

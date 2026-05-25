@@ -107,6 +107,7 @@ export interface PI {
   TRANSPORT_MODE?: string;
   
   DELIVERY_CHARGES?: string;
+  CASH_DISCOUNT?: string;
   CGST_PERCENT?: string;
   SGST_PERCENT?: string;
   IGST_PERCENT?: string;
