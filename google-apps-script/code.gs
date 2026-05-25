@@ -813,28 +813,24 @@ function generatePdfFromTemplate(params) {
 
   // Handle percentage placeholders specifically (so formulas calculate correctly with raw numbers while showing % symbol on PDF)
   const pctPlaceholderConfigs = [
-    { key: "<<CASH_DISCOUNT>>", val: cashDiscountPctVal, hasDecimal: String(params.CASH_DISCOUNT).indexOf('.') !== -1 },
-    { key: "<<CASH_DISCOUNT%>>", val: cashDiscountPctVal, hasDecimal: String(params.CASH_DISCOUNT).indexOf('.') !== -1 },
-    { key: "<<Discount>>", val: cashDiscountPctVal, hasDecimal: String(params.CASH_DISCOUNT).indexOf('.') !== -1 },
-    { key: "<<Discount%>>", val: cashDiscountPctVal, hasDecimal: String(params.CASH_DISCOUNT).indexOf('.') !== -1 },
-    { key: "<<CGST%>>", val: Number(params.CGST_PERCENT) || 0, hasDecimal: String(params.CGST_PERCENT).indexOf('.') !== -1 },
-    { key: "<<SGST%>>", val: Number(params.SGST_PERCENT) || 0, hasDecimal: String(params.SGST_PERCENT).indexOf('.') !== -1 },
-    { key: "<<IGST%>>", val: params.IGST_PERCENT !== undefined ? Number(params.IGST_PERCENT) : 5, hasDecimal: String(params.IGST_PERCENT).indexOf('.') !== -1 }
+    { regex: "<<\\s*(CASH_DISCOUNT|CASH_DIS_COUNT|Discount|Discount%)\\s*>>", val: cashDiscountPctVal, hasDecimal: String(params.CASH_DISCOUNT).indexOf('.') !== -1 },
+    { regex: "<<\\s*(CGST%|CGST|CGST_PERCENT)\\s*>>", val: Number(params.CGST_PERCENT) || 0, hasDecimal: String(params.CGST_PERCENT).indexOf('.') !== -1 },
+    { regex: "<<\\s*(SGST%|SGST|SGST_PERCENT)\\s*>>", val: Number(params.SGST_PERCENT) || 0, hasDecimal: String(params.SGST_PERCENT).indexOf('.') !== -1 },
+    { regex: "<<\\s*(IGST%|IGST|IGST_PERCENT)\\s*>>", val: params.IGST_PERCENT !== undefined ? Number(params.IGST_PERCENT) : 5, hasDecimal: String(params.IGST_PERCENT).indexOf('.') !== -1 }
   ];
 
   pctPlaceholderConfigs.forEach(function(config) {
-     var finder = newSheet.createTextFinder(config.key);
+     var finder = newSheet.createTextFinder(config.regex).useRegularExpression(true);
      var cell = finder.findNext();
      while (cell) {
         cell.setValue(config.val);
         try {
            if (config.hasDecimal) {
-              cell.setNumberFormat('0.00"%"');
+              cell.setNumberFormat('0.00\\%');
            } else {
-              cell.setNumberFormat('0"%"');
+              cell.setNumberFormat('0\\%');
            }
         } catch (err) {
-           // Fallback format if custom format throws
            cell.setNumberFormat('0\\%');
         }
         cell = finder.findNext();

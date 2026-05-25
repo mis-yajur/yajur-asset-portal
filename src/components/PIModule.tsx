@@ -87,7 +87,7 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
   }, []);
 
   const filteredPIs = useMemo(() => {
-    return piData.filter(pi => {
+    const list = piData.filter(pi => {
       const matchesSearch = 
         String(pi.PI_NO || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         String(pi.CUSTOMER_NAME || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -96,6 +96,47 @@ export default function PIModule({ onNotify, onLog }: PIModuleProps) {
       const matchesStatus = !statusFilter || pi.STATUS === statusFilter;
       
       return matchesSearch && matchesStatus;
+    });
+
+    // Sort: Last entry on top (newest first)
+    return [...list].sort((a, b) => {
+      // 1. Try to compare by CREATED_AT (which is stored as ISO string/date)
+      const dateA = a.CREATED_AT ? new Date(a.CREATED_AT).getTime() : 0;
+      const dateB = b.CREATED_AT ? new Date(b.CREATED_AT).getTime() : 0;
+      if (dateA !== dateB && dateA > 0 && dateB > 0) {
+        return dateB - dateA;
+      }
+
+      // 2. Fallback: Compare by INVOICE_DATE
+      const parseDate = (dStr: string) => {
+        if (!dStr) return 0;
+        // Handle DD/MM/YYYY
+        if (dStr.includes('/')) {
+          const parts = dStr.split('/');
+          if (parts.length === 3) {
+            // Convert to YYYY-MM-DD
+            return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+          }
+        }
+        return new Date(dStr).getTime();
+      };
+      
+      const invA = parseDate(a.INVOICE_DATE);
+      const invB = parseDate(b.INVOICE_DATE);
+      if (invA !== invB && !isNaN(invA) && !isNaN(invB) && invA > 0 && invB > 0) {
+        return invB - invA;
+      }
+
+      // 3. Fallback: Compare by PI_NO descending
+      const piNoA = String(a.PI_NO || '');
+      const piNoB = String(b.PI_NO || '');
+      const piNoComp = piNoB.localeCompare(piNoA, undefined, { numeric: true, sensitivity: 'base' });
+      if (piNoComp !== 0) return piNoComp;
+
+      // 4. Default fallback: reverse of original loaded sheet index
+      const idxA = piData.indexOf(a);
+      const idxB = piData.indexOf(b);
+      return idxB - idxA;
     });
   }, [piData, searchTerm, statusFilter]);
 

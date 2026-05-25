@@ -114,6 +114,7 @@ export interface PI {
   OTHER_CHARGES?: string;
   
   CREATED_DATE?: string;
+  CREATED_AT?: string;
   // Computed fields
   totalDelivered?: number;
   remaining?: number;
