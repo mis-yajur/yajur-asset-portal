@@ -1,4 +1,18 @@
-let API_URL = localStorage.getItem('LIFTING_API_URL') || import.meta.env.VITE_API_URL || 'https://script.google.com/macros/s/AKfycbytnxq-ShRWabByhO6fhxLtZeGTiMxduup42ADdIdLSsp0uPNszGut9HIaG5h-guNUD/exec';
+const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzhURx-xmb5c5GX24L2Hev-OV9RB3U7VsnuiRzPSSVkWMi48zf8GxmdB41DeHOU8b9s/exec';
+
+// Automatically upgrade stored URL if it's the old or default one
+const oldDefaults = [
+  'https://script.google.com/macros/s/AKfycbytnxq-ShRWabByhO6fhxLtZeGTiMxduup42ADdIdLSsp0uPNszGut9HIaG5h-guNUD/exec',
+];
+
+let storedUrl = localStorage.getItem('LIFTING_API_URL') || import.meta.env.VITE_API_URL || DEFAULT_URL;
+
+if (oldDefaults.includes(storedUrl)) {
+  storedUrl = DEFAULT_URL;
+  localStorage.setItem('LIFTING_API_URL', DEFAULT_URL);
+}
+
+let API_URL = storedUrl;
 
 export function setApiUrl(url: string) {
   API_URL = url;
